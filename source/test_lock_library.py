@@ -25,7 +25,7 @@ CATALOG = [
 ]
 
 
-def item(name="霄引", tier=10, quality=3, attack=45, magic=48):
+def item(name="霄引", tier=10, quality=4, attack=45, magic=48):
     return {
         "物品类型": 1,
         "名字": name,
@@ -44,12 +44,12 @@ class LockLibraryTests(unittest.TestCase):
 
     def test_quality_rule_locks_unlisted_current_t6_equipment(self):
         rules = LockLibrary(CATALOG, {"qualities": ["完美"], "quality_tiers": [10]})
-        for quality in (3, "完美"):
+        for quality in (4, "完美"):
             with self.subTest(quality=quality):
                 current_item = item(name="新版T6套装", tier=10, quality=quality)
                 self.assertEqual(rules.reasons(current_item), ("quality",))
                 self.assertTrue(rules.matches(current_item))
-        self.assertFalse(rules.matches(item(name="新版T6套装", tier=9, quality=3)))
+        self.assertFalse(rules.matches(item(name="新版T6套装", tier=9, quality=4)))
 
     def test_bad_item_tier_does_not_break_quality_locking(self):
         rules = LockLibrary(CATALOG, {"qualities": ["完美"], "quality_tiers": [10]})

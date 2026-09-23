@@ -6,6 +6,7 @@ a = Analysis(
     [str(root / 'loot_app.py')], pathex=[str(root)],
     binaries=[],
     datas=[(str(root / 'catalog/filter-catalog.json'), 'catalog'),
+           (str(root / 'catalog/catalog-source.json'), 'catalog'),
            (str(root / 'assets/backpack-lock.png'), 'assets'),
            (str(root / 'catalog/codex-items.json'), 'catalog'),
            (str(root / 'catalog/skill-names.json'), 'catalog'),

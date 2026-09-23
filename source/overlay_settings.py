@@ -2,7 +2,7 @@
 import math
 import tkinter as tk
 from tkinter import messagebox, ttk
-from gear_view import catalog_data, configured_rules, LEGENDARY_TYPES
+from gear_view import catalog_data, configured_rules, LEGENDARY_TYPES, DEFAULT_LEGENDARY_TYPES
 from overlay_scroll import dark_scrollbars, AutoScrollbar
 from tk_lifecycle import guard_tk
 
@@ -310,7 +310,7 @@ class Settings:
             self.label(matrix, f'T{tier - 4}').grid(row=row, column=0, padx=(0, 12), pady=7)
             for column, kind in enumerate(self.types, 1):
                 key = f"{tier}:{kind['id']}"
-                var = tk.BooleanVar(value=(tier == 9 if selected is None else key in selected))
+                var = tk.BooleanVar(value=(tier == 9 and kind['id'] in DEFAULT_LEGENDARY_TYPES if selected is None else key in selected))
                 self.pair_vars[key] = var
                 self.check(matrix, '', var, self.update_pair_count).grid(row=row, column=column, padx=3)
         self.pair_count = self.label(self.legend_tab, '', anchor='w')

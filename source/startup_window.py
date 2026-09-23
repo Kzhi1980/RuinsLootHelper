@@ -2,6 +2,15 @@
 from ui_theme import center_window
 
 
+def reader_status_text(state):
+    return {'watching': '● 游戏已连接', 'waiting_for_game': '○ 等待游戏启动',
+            'discovering': '○ 正在连接游戏', 'waiting_for_backpack': '○ 等待进入角色',
+            'waiting_for_files': '○ 状态文件暂不可写，正在重试',
+            'waiting_for_monitor': '○ 旧监控尚未退出，等待释放',
+            'monitor_failed': '○ 正在重新连接', 'game_exited': '○ 等待下次启动游戏',
+            'stopped': '○ 读取已停止'}.get(state.get('status'), '○ 正在连接游戏')
+
+
 class StartupWindow:
     def __init__(self, overlay, game, version, show=True, directory=None):
         from overlay_settings import Settings
@@ -30,10 +39,7 @@ class StartupWindow:
         if phase == self.last_state:
             return
         self.last_state = phase
-        text = {'watching':'● 游戏已连接', 'waiting_for_game':'○ 等待游戏启动',
-                'discovering':'○ 正在连接游戏', 'waiting_for_backpack':'○ 等待进入角色',
-                'monitor_failed':'○ 正在重新连接', 'game_exited':'○ 等待下次启动游戏'}.get(phase, '○ 正在连接游戏')
-        self.dialog.game_status.configure(text=text)
+        self.dialog.game_status.configure(text=reader_status_text(state))
 
     def show(self):
         self.user_open = True

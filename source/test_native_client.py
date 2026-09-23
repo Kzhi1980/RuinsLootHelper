@@ -160,7 +160,7 @@ class NativeClientTests(unittest.TestCase):
             status={'game_pid': 123}, live=True,
             current={'items': [{'index': 4, 'item': {
                 '物品类型': 1, 'ID': 13, '锁定': False, '名字': '霄引', '等阶': 10,
-                '品质': 3, '基础属性': {'攻击上限': 45, '魔法上限': 48},
+                '品质': 4, '基础属性': {'攻击上限': 45, '魔法上限': 48},
             }}]},
             ui={'ui': {'valid': True, 'player_address': 999}},
             settings={
@@ -179,7 +179,7 @@ class NativeClientTests(unittest.TestCase):
             status={'game_pid': 123}, live=True,
             current={'items': [{'index': 4, 'item': {
                 '物品类型': 1, 'ID': 13, '锁定': False, '名字': '新版T6套装', '等阶': 10,
-                '品质': 3, '基础属性': {'攻击上限': 45, '魔法上限': 48},
+                '品质': 4, '基础属性': {'攻击上限': 45, '魔法上限': 48},
             }}]},
             ui={'ui': {'valid': True, 'player_address': 999}},
             settings={
@@ -203,7 +203,7 @@ class NativeClientTests(unittest.TestCase):
         }]}
         self.send(snapshot)
         self.assertEqual(self.send(snapshot)['locks'], [])
-        snapshot.current['items'][0]['item'].update(品质=3, 基础属性={'魔法上限': 48})
+        snapshot.current['items'][0]['item'].update(品质=4, 基础属性={'魔法上限': 48})
         self.assertEqual([x['index'] for x in self.send(snapshot)['locks']], [4])
 
 

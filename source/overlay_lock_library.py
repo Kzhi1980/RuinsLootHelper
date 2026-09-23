@@ -7,7 +7,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 from gear_view import catalog_data
-from lock_library import LockLibrary, QUALITY_LABELS, rules_from_settings
+from lock_library import LockLibrary, QUALITY_LABELS, config_error, rules_from_settings
 from overlay_scroll import AutoScrollbar
 from pickup_library import EquipmentLibrary, equipment_key
 from ui_theme import BG, PANEL, FG, GOLD, GREEN, MUTED
@@ -16,15 +16,18 @@ from ui_theme import BG, PANEL, FG, GOLD, GREEN, MUTED
 class LockLibrarySettings:
     def __init__(self, dialog):
         self.dialog = dialog
+        self.original_config = copy.deepcopy(dialog.settings.get('lock_library', {}))
+        self.config_problem = config_error(self.original_config)
         self.groups = rules_from_settings(dialog.settings) or [{'name': '保留规则 1'}]
         self.current_rule = 0
         self.loading = True
-        saved = self.groups[0]
+        self.original_rule = copy.deepcopy(self.groups[0])
+        saved = self.original_rule if isinstance(self.original_rule, dict) else {}
         rows = catalog_data().get('equipment', ())
         normalized = LockLibrary(rows, saved)
         self.rows_by_key = {equipment_key(row): row for row in rows if isinstance(row, dict)}
         self.model = EquipmentLibrary(rows, list(normalized.equipment_keys))
-        self.thresholds = {key: dict(values) for key, values in normalized.thresholds.items()}
+        self.thresholds = copy.deepcopy(saved.get('thresholds', {})) if isinstance(saved.get('thresholds', {}), dict) else {}
         self.tab = tk.Frame(dialog.features, bg=BG)
         dialog.features.add(self.tab, text='自动锁定')
         self.canvas = tk.Canvas(self.tab, bg=BG, highlightthickness=0)
@@ -47,7 +50,7 @@ class LockLibrarySettings:
         rule_actions = tk.Frame(self.body, bg=BG); rule_actions.pack(fill='x', padx=12, pady=(0, 6))
         dialog.button(rule_actions, '另外添加规则', self.add_rule).pack(side='left')
         dialog.button(rule_actions, '删除当前规则', self.delete_rule).pack(side='left')
-        self.rule_enabled = tk.BooleanVar(master=self.tab, value=saved.get('enabled', True))
+        self.rule_enabled = tk.BooleanVar(master=self.tab, value=normalized.enabled)
         dialog.check(rule_actions, '启用当前规则', self.rule_enabled, self.changed).pack(side='left', padx=10)
         self.rule_name = tk.StringVar(master=self.tab, value=saved.get('name', '保留规则 1'))
         self.rule_name.trace_add('write', lambda *_: self.changed())
@@ -83,7 +86,7 @@ class LockLibrarySettings:
         conditions = tk.Frame(self.body, bg=PANEL)
         conditions.pack(fill='x', padx=12, pady=(0, 8))
         self.set_modes = {'全部装备': 'all', '仅套装': 'set', '仅非套装': 'non_set'}
-        self.set_mode = tk.StringVar(master=self.tab, value=next(k for k,v in self.set_modes.items() if v == normalized.set_mode))
+        self.set_mode = tk.StringVar(master=self.tab, value=next((k for k,v in self.set_modes.items() if v == normalized.set_mode), '全部装备'))
         scope_line = tk.Frame(conditions, bg=PANEL); scope_line.pack(fill='x', padx=12, pady=5)
         dialog.label(scope_line, '范围').pack(side='left', padx=(0, 8))
         ttk.Combobox(scope_line, textvariable=self.set_mode, values=list(self.set_modes), state='readonly', width=12).pack(side='left')
@@ -176,6 +179,7 @@ class LockLibrarySettings:
         for variable in (self.query, self.tier, self.part, self.set_group, self.only_selected):
             variable.trace_add('write', self.schedule)
         self.tab.bind('<Destroy>', self.cleanup)
+        self.editor_baseline = self.editor_values()
         self.loading = False
         self.redraw()
 
@@ -186,16 +190,12 @@ class LockLibrarySettings:
         self.update_count()
 
     def summary(self):
-        parts = []
-        qualities = [quality for quality in QUALITY_LABELS if self.quality_vars[quality].get()]
-        if qualities:
-            tiers = [f'T{raw - 4}' for raw, variable in self.quality_tier_vars.items() if variable.get()]
-            parts.append('品质：' + '、'.join(qualities) + (f'（{"、".join(tiers)}）' if tiers else ''))
-        if self.model.selected:
-            parts.append(f'装备库 {len(self.model.selected)} 项')
-        if self.thresholds:
-            parts.append(f'门槛 {len(self.thresholds)} 项')
-        return f'自动锁定：{sum(rule.get("enabled", True) for rule in self.groups)} 条已启用规则'
+        enabled = sum(isinstance(rule, dict) and rule.get('enabled', True) is True for rule in self.groups)
+        invalid = self.config_problem or any(
+            not isinstance(rule, dict) or (rule.get('enabled') is not False and
+                not LockLibrary(list(self.rows_by_key.values()), rule).valid)
+            for rule in self.groups)
+        return f'自动锁定：{enabled} 条已启用规则' + (' · 存在无效规则，自动回收暂停' if invalid else '')
 
     def schedule(self, *_):
         if self.job:
@@ -208,7 +208,13 @@ class LockLibrarySettings:
 
     def threshold_text(self, key):
         values = self.thresholds.get(key, {})
-        return '；'.join(f'{field} ≥ {value:g}' for field, value in values.items()) or '—'
+        if not isinstance(values, dict):
+            return '门槛格式无效，请重新设置'
+        return '；'.join(f'{field} ≥ {self.number_text(value)}' for field, value in values.items()) or '—'
+
+    @staticmethod
+    def number_text(value):
+        return f'{value:g}' if type(value) in (int, float) else str(value)
 
     def row_values(self, row):
         return ('☑' if row['key'] in self.model.selected else '☐', row['label'], row['tier'], row.get('set_name', '—'), row['type_label'],
@@ -228,12 +234,12 @@ class LockLibrarySettings:
 
     def update_count(self):
         self.counter.configure(text=f'已勾选装备 {len(self.model.selected)} 项 · 设置门槛 {len(self.thresholds)} 项 · 当前显示 {len(getattr(self, "visible", ())) } 项')
-        summary = getattr(self.dialog.native_settings, 'lock_library_summary', None)
-        if summary is not None:
-            summary.configure(text=self.summary())
         if not self.loading:
             self.save_current()
             self.refresh_rules()
+        summary = getattr(self.dialog.native_settings, 'lock_library_summary', None)
+        if summary is not None:
+            summary.configure(text=self.summary())
 
     def toggle(self, key):
         if not key or not self.tree.exists(key):
@@ -285,7 +291,7 @@ class LockLibrarySettings:
         maximum = self._allowed_fields(key).get(field)
         if (type(maximum) in (int, float) and not isinstance(maximum, bool)
                 and math.isfinite(maximum)):
-            return f'{field}（图鉴满值 {maximum:g}）'
+            return f'{field}（装备表基准 {maximum:g}）'
         return field
 
     def set_threshold(self, key, values):
@@ -322,14 +328,22 @@ class LockLibrarySettings:
         self.dialog.label(window, '下面是图鉴中的实际基础属性。勾选要比较的项目，再填写最低值；未勾选不限制。', color=MUTED).pack(
             anchor='w', padx=22, pady=(20, 12))
         variables = {}
+        saved_fields = self.thresholds.get(key, {})
+        if not isinstance(saved_fields, dict):
+            saved_fields = {}
+        unknown = set(saved_fields) - set(fields)
+        if unknown:
+            self.dialog.label(window, '原门槛含无效字段：' + '、'.join(map(str, unknown)) +
+                              '。保存将以本窗口勾选的门槛替换该装备原门槛。', color=GOLD,
+                              wraplength=600).pack(anchor='w', padx=22, pady=(0, 8))
         for field in self.threshold_options(key):
             line = tk.Frame(window, bg=BG)
             line.pack(fill='x', padx=22, pady=4)
-            old = self.thresholds.get(key, {}).get(field)
+            old = saved_fields.get(field)
             enabled = tk.BooleanVar(master=window, value=old is not None)
             self.dialog.check(line, self.threshold_label(key, field), enabled).pack(side='left')
             self.dialog.label(line, '≥').pack(side='left', padx=(0, 6))
-            variable = tk.StringVar(master=window, value='' if old is None else f'{old:g}')
+            variable = tk.StringVar(master=window, value='' if old is None else self.number_text(old))
             entry = tk.Entry(line, textvariable=variable, width=12, bg=PANEL, fg=FG, insertbackground=FG,
                              relief='flat')
             entry.pack(side='left', ipady=5)
@@ -368,30 +382,38 @@ class LockLibrarySettings:
         if key in self.thresholds:
             self.set_threshold(key, {})
 
-    def current_values(self):
+    def editor_values(self):
         qualities = [quality for quality in QUALITY_LABELS if self.quality_vars[quality].get()]
         tiers = [tier for tier, variable in self.quality_tier_vars.items() if variable.get()]
-        thresholds = {}
-        for key, values in self.thresholds.items():
-            allowed = self._allowed_fields(key)
-            clean = {field: value for field, value in values.items()
-                     if field in allowed and type(value) in (int, float) and not isinstance(value, bool)
-                     and math.isfinite(value) and 0 <= value <= 100000}
-            if clean:
-                thresholds[key] = clean
         return {'name': self.rule_name.get().strip() or f'保留规则 {self.current_rule + 1}',
                 'enabled': self.rule_enabled.get(), 'qualities': qualities, 'quality_tiers': sorted(tiers),
-                'equipment_keys': self.model.values(), 'thresholds': thresholds,
+                'equipment_keys': self.model.values(), 'thresholds': copy.deepcopy(self.thresholds),
                 'set_mode': self.set_modes[self.set_mode.get()], 'upper': self.upper.get(), 'lower': self.lower.get(),
                 'upper_ids': list(self.upper_ids), 'lower_ids': list(self.lower_ids),
                 'numeric': self.numeric.get(), 'keep_all': self.keep_all.get(),
                 'filter_sections': [key for key, variable in self.legacy_vars.items() if variable.get()]}
+
+    def current_values(self):
+        # Widget defaults are only a display projection. Preserve every original
+        # restriction unless the user actually edits its corresponding control.
+        result = copy.deepcopy(self.original_rule)
+        if not isinstance(result, dict):
+            return result
+        for key, value in self.editor_values().items():
+            if value != self.editor_baseline[key]:
+                result[key] = value
+        return result
 
     def save_current(self):
         if not self.loading:
             self.groups[self.current_rule] = self.current_values()
 
     def describe(self, rule):
+        if not isinstance(rule, dict):
+            return '规则格式无效，请删除并重建'
+        checked = LockLibrary(list(self.rows_by_key.values()), rule)
+        if not checked.valid:
+            return '规则无效：' + '；'.join(checked.errors)
         parts = []
         if rule.get('quality_tiers'):
             parts.append('/'.join(f'T{tier - 4}' if tier >= 5 else '普通' for tier in rule['quality_tiers']))
@@ -420,10 +442,22 @@ class LockLibrarySettings:
         for child in self.rules_list.get_children():
             if int(child) >= len(self.groups): self.rules_list.delete(child)
         for index, rule in enumerate(self.groups):
-            values = ('✓' if rule.get('enabled', True) else '—', rule.get('name', f'规则 {index+1}') + '：' + self.describe(rule))
+            saved = rule if isinstance(rule, dict) else {}
+            values = ('✓' if saved.get('enabled', True) is True else '—', str(saved.get('name', f'规则 {index+1}')) + '：' + self.describe(rule))
             if self.rules_list.exists(str(index)): self.rules_list.item(str(index), values=values)
             else: self.rules_list.insert('', 'end', iid=str(index), values=values)
-        self.rule_description.configure(text='本条全部满足：' + self.describe(self.groups[self.current_rule]))
+        current = self.groups[self.current_rule]
+        description = self.describe(current)
+        invalid = not isinstance(current, dict) or not LockLibrary(list(self.rows_by_key.values()), current).valid
+        if self.config_problem:
+            text = self.config_problem + '。原设置已保留；自动回收已暂停。'
+        elif invalid:
+            disabled = isinstance(current, dict) and current.get('enabled') is False
+            text = description + ('。本条已停用，原条件已保留。' if disabled else
+                                  '。原条件已保留；自动回收已暂停。请修正门槛、停用或删除重建本条规则。')
+        else:
+            text = '本条全部满足：' + description
+        self.rule_description.configure(text=text)
         self.upper_button.configure(text=f'指定上技能（{len(self.upper_ids) or "任意"}）')
         self.lower_button.configure(text=f'指定下技能（{len(self.lower_ids) or "任意"}）')
 
@@ -436,15 +470,16 @@ class LockLibrarySettings:
         self.save_current()
         self.loading = True
         self.current_rule = index
-        saved = self.groups[index]
+        self.original_rule = copy.deepcopy(self.groups[index])
+        saved = self.original_rule if isinstance(self.original_rule, dict) else {}
         normalized = LockLibrary(list(self.rows_by_key.values()), saved)
         self.rule_name.set(saved.get('name', f'保留规则 {index+1}'))
-        self.rule_enabled.set(saved.get('enabled', True))
+        self.rule_enabled.set(normalized.enabled)
         for key, var in self.quality_vars.items(): var.set(key in normalized.qualities)
         for key, var in self.quality_tier_vars.items(): var.set(key in normalized.quality_tiers)
         self.model.selected = set(normalized.equipment_keys)
-        self.thresholds = copy.deepcopy(normalized.thresholds)
-        self.set_mode.set(next(k for k,v in self.set_modes.items() if v == normalized.set_mode))
+        self.thresholds = copy.deepcopy(saved.get('thresholds', {})) if isinstance(saved.get('thresholds', {}), dict) else {}
+        self.set_mode.set(next((k for k,v in self.set_modes.items() if v == normalized.set_mode), '全部装备'))
         for key in ('upper','lower','numeric','keep_all'): getattr(self,key).set(getattr(normalized,key))
         self.upper_ids, self.lower_ids = list(normalized.upper_ids), list(normalized.lower_ids)
         for key, var in self.legacy_vars.items(): var.set(key in normalized.filter_sections)
@@ -452,6 +487,7 @@ class LockLibrarySettings:
         else: self.legacy_box.pack_forget()
         self.query.set(''); self.tier.set('全部 T 级'); self.part.set('全部部位')
         self.set_group.set('全部套装'); self.only_selected.set(False)
+        self.editor_baseline = self.editor_values()
         self.loading = False
         self.redraw()
         self.rules_list.selection_set(str(index))
@@ -463,6 +499,13 @@ class LockLibrarySettings:
         self.changed()
 
     def delete_rule(self):
+        if self.config_problem:
+            self.config_problem = None
+            self.groups = [{'name': '保留规则 1'}]
+            self.loading = True
+            self.select_rule(0)
+            self.changed()
+            return
         self.groups.pop(self.current_rule)
         if not self.groups: self.groups.append({'name': '保留规则 1'})
         # Load the surviving rule without writing the deleted editor over it.
@@ -501,6 +544,8 @@ class LockLibrarySettings:
 
     def values(self):
         self.save_current()
+        if self.config_problem:
+            return {'lock_library': copy.deepcopy(self.original_config)}
         return {'lock_library': {'schema': 2, 'rules': copy.deepcopy(self.groups)}}
 
     def cleanup(self, event):

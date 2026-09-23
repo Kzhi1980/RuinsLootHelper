@@ -30,6 +30,49 @@ class NativeInstallTests(unittest.TestCase):
         shutil.copytree(native_support.ROOT / 'native', bundle / 'native')
         return bundle, runtime
 
+    def test_upgrade_disables_only_fingerprinted_old_bagua_probe_and_keeps_backup(self):
+        for known in (True, False):
+            with self.subTest(known=known), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                game, data, archive = self.fixture(root)
+                module = game.parent / 'ue4ss/Mods/RuinsBaguaMarker'
+                (module / 'Scripts').mkdir(parents=True)
+                main = module / 'Scripts/main.lua'
+                main.write_bytes(b'old assistant probe' if known else b'another users mod')
+                enabled = module / 'enabled.txt'
+                enabled.write_bytes(b'enabled marker')
+                with patch.object(native_support, 'SHA256', hashlib.sha256(archive.read_bytes()).hexdigest()), \
+                     patch.object(native_support, 'LEGACY_BAGUA_SHA256', hashlib.sha256(b'old assistant probe').hexdigest(), create=True):
+                    native_support.install(game, data, archive)
+                    native_support.install(game, data, archive)
+                self.assertEqual(enabled.exists(), not known)
+                if known:
+                    self.assertEqual((module / 'enabled.txt.ruins-helper-disabled.bak').read_bytes(), b'enabled marker')
+                self.assertEqual(main.read_bytes(), b'old assistant probe' if known else b'another users mod')
+
+    def test_failure_restores_old_probe_enable_flag_with_other_install_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            game, data, archive = self.fixture(root)
+            module = game.parent / 'ue4ss/Mods/RuinsBaguaMarker'
+            (module / 'Scripts').mkdir(parents=True)
+            (module / 'Scripts/main.lua').write_bytes(b'old assistant probe')
+            enabled = module / 'enabled.txt'
+            enabled.write_bytes(b'enabled marker')
+            before = {str(path): path.read_bytes() for path in game.parent.rglob('*') if path.is_file()}
+            original = native_support.write_atomic
+            def fail_receipt(path, content):
+                if path.name == 'native-install.json':
+                    raise OSError('simulated receipt failure')
+                return original(path, content)
+            with patch.object(native_support, 'SHA256', hashlib.sha256(archive.read_bytes()).hexdigest()), \
+                 patch.object(native_support, 'LEGACY_BAGUA_SHA256', hashlib.sha256(b'old assistant probe').hexdigest(), create=True), \
+                 patch.object(native_support, 'write_atomic', side_effect=fail_receipt):
+                with self.assertRaises(OSError):
+                    native_support.install(game, data, archive)
+            after = {str(path): path.read_bytes() for path in game.parent.rglob('*') if path.is_file()}
+            self.assertEqual(after, before)
+
     def test_new_profile_installs_bundled_runtime_without_network(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

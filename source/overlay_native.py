@@ -6,6 +6,7 @@ import tkinter as tk
 from native_client import fresh_status, PROTOCOL
 from overlay_scroll import AutoScrollbar
 from pickup_library import pickup_options, RANGE_OPTIONS, INTERVAL_OPTIONS, BATCH_OPTIONS
+from startup_window import reader_status_text
 from ui_theme import BG, PANEL, FG, MUTED, GOLD, LINE, GREEN, label
 from ui_switch import Switch
 
@@ -267,6 +268,7 @@ class NativeSettings:
         if library is not None:
             self.lock_library_summary.configure(text=library.summary())
         recycle = {'requested':'已调用游戏回收','unlock_grace':'手动解锁静默中','waiting_for_locks':'等待达标装备锁定',
+                   'invalid_lock_rules':'锁定规则无效，已暂停自动回收，请到“自动锁定”修正',
                    'inventory_changed':'背包变化，重新检查','error':'暂不可用，请检查组件'}.get(state.get('recycle_state'), '等待背包剩余 1 格')
         self.recycle_status.configure(text='需先开启自动锁定' if not self.lock.get() else '已关闭' if not self.auto_recycle.get()
                                       else recycle if connected else '等待游戏组件连接')
@@ -279,8 +281,10 @@ class NativeSettings:
         selected = len(library.equipment_values()) + len(library.codex_values())
         self.codex_summary.configure(text='已关闭，清单已保留' if not self.drop_enabled.get() else
                                     f'已选择 {selected} 种物品' + (' · 已连接' if connected else ' · 等待组件'))
-        status = self.dialog.overlay.read_file('continuous-status.json', {}) or {}
-        self.dialog.game_status.configure(text='● 游戏已连接' if status.get('status') == 'watching' else '○ 等待游戏连接')
+        status = getattr(self.dialog.overlay, 'reader_state', None)
+        if status is None:
+            status = self.dialog.overlay.read_file('continuous-status.json', {}) or {}
+        self.dialog.game_status.configure(text=reader_status_text(status))
         self.job = self.dialog.window.after(500, self.refresh)
 
     def update_rift_available(self, state):

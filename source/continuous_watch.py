@@ -8,6 +8,7 @@ import msvcrt
 import os
 import pathlib
 import struct
+import tempfile
 import time
 
 from loot_current import CurrentInventory, occupied_main_slots
@@ -23,16 +24,31 @@ def utcnow():
 
 
 def atomic_text(path, text):
-    temp = path.with_suffix(path.suffix + ".tmp")
-    temp.write_text(text, encoding="utf-8")
-    for attempt in range(5):
+    # Never overwrite another publication's temporary file. The destination is
+    # replaced only after a complete write, including while readers hold it.
+    descriptor, name = tempfile.mkstemp(prefix=f'.{path.name}.', suffix='.tmp', dir=path.parent)
+    temp = pathlib.Path(name)
+    try:
+        with os.fdopen(descriptor, 'w', encoding='utf-8') as stream:
+            stream.write(text)
+        delays = (.01, .02, .04, .08, .16)
+        for attempt in range(len(delays) + 1):
+            try:
+                temp.replace(path)
+                return
+            except PermissionError:
+                if attempt == len(delays):
+                    raise
+                time.sleep(delays[attempt])
+    finally:
         try:
-            temp.replace(path)
-            return
-        except PermissionError:
-            if attempt == 4:
-                raise
-            time.sleep(0.01)
+            temp.unlink(missing_ok=True)
+        except OSError:
+            pass  # Do not replace the original write error with cleanup failure.
+
+
+class MonitorBusyError(RuntimeError):
+    """Another monitor still owns the process-scoped inventory lock."""
 
 
 def fields_text(data):
@@ -221,31 +237,30 @@ class ContinuousWatch(Watch):
             time.sleep(max(0.001, self.interval - duration))
 
     def run(self):
-        lock = open(self.output.parent / "continuous.lock", "a+b")
-        if lock.tell() == 0:
-            lock.write(b"0")
-            lock.flush()
-        lock.seek(0)
-        try:
-            msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
-        except OSError:
-            lock.close()
-            raise RuntimeError("A continuous monitor is already running")
-        try:
-            self.setup_source()
-            self.observe()
-        except InterruptedError:
-            self.phase = "stopped"
-        except Exception as exc:
-            self.phase = "monitor_failed"
-            self.error = f"{type(exc).__name__}: {exc}"
-        finally:
-            if self.handle:
-                k.CloseHandle(self.handle)
-                self.handle = None
-            self.state.clear()
-            self.publish()
-            lock.close()
+        with open(self.output.parent / "continuous.lock", "a+b") as lock:
+            if lock.tell() == 0:
+                lock.write(b"0")
+                lock.flush()
+            lock.seek(0)
+            try:
+                msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
+            except OSError as exc:
+                raise MonitorBusyError('监控文件暂被占用，等待释放；请确认旧助手已退出。') from exc
+            try:
+                self.setup_source()
+                self.observe()
+            except InterruptedError:
+                self.phase = "stopped"
+            except Exception as exc:
+                self.phase = "monitor_failed"
+                self.error = f"{type(exc).__name__}: {exc}"
+            finally:
+                if self.handle:
+                    k.CloseHandle(self.handle)
+                    self.handle = None
+                self.state.clear()
+                self.publish()
+                # The enclosing context releases the lock even if publish fails.
 
 
 if __name__ == "__main__":

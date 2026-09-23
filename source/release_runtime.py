@@ -7,8 +7,9 @@ import pathlib
 import struct
 import threading
 import time
+import traceback
 
-from continuous_watch import ContinuousWatch, atomic_text, utcnow
+from continuous_watch import ContinuousWatch, MonitorBusyError, atomic_text, utcnow
 from game_install import EXE_NAME
 from live_items import clean
 from probe import Probe, configure_runtime, k, ptr, u32, u64
@@ -53,8 +54,16 @@ def running_games(expected):
     return result
 
 
+class StatusWriteError(OSError):
+    """A runtime snapshot could not be published; game access is separate."""
+
+
 def write_json(directory, name, value):
-    atomic_text(pathlib.Path(directory) / name, json.dumps(value, ensure_ascii=False, indent=2))
+    path = pathlib.Path(directory) / name
+    try:
+        atomic_text(path, json.dumps(value, ensure_ascii=False, indent=2))
+    except OSError as exc:
+        raise StatusWriteError(f'{path}: {exc}') from exc
 
 
 class SessionProbe(Probe):
@@ -265,7 +274,11 @@ class Backend:
     def progress(self, status, pid=0, detail=None):
         self.state = {'status': status, 'game_pid': pid, 'worker_pid': os.getpid(),
                       'heartbeat_utc': utcnow(), 'error': detail, 'mode': 'read_only'}
+        self.notify()
         write_json(self.directory, 'continuous-status.json', self.state)
+
+    def notify(self):
+        """The process worker publishes state independently of disk access."""
 
     def clear(self, status, pid=0, detail=None):
         write_json(self.directory, 'current-loot.json', {'status': status, 'items': [], 'count': 0, 'backpack_free_slots': None})
@@ -273,21 +286,38 @@ class Backend:
             'status': 'waiting', 'mode': 'read_only', 'game_pid': pid, 'ui': {'valid': False, 'backpack_open': False}, 'heartbeat_utc': utcnow()})
         self.progress(status, pid, detail)
 
+    def safe_clear(self, status, pid=0, detail=None):
+        try:
+            self.clear(status, pid, detail)
+        except OSError as exc:
+            detail = (detail + '；' if detail else '') + f'状态文件暂不可写：{exc}'
+            try:
+                self.progress(status, 0, detail)
+            except OSError:
+                pass  # notify() already delivered the error without using disk.
+
+    def report_failure(self, status, pid, exc):
+        try:
+            (self.directory / 'worker-error.txt').write_text(traceback.format_exc(), encoding='utf8')
+        except OSError:
+            pass
+        self.safe_clear(status, pid, f'{type(exc).__name__}: {exc}')
+
     def start(self):
-        self.clear('waiting_for_game')
         self.thread = threading.Thread(target=self.run, name='ReadOnlyInventory', daemon=True)
         self.thread.start()
 
     def run(self):
         try:
             while not self.stop.is_set():
-                games = running_games(self.game)
-                if len(games) != 1:
-                    self.clear('waiting_for_game', detail='检测到多个游戏进程，请只保留一个' if games else None)
-                    self.stop.wait(1)
-                    continue
-                pid = games[0]
+                pid = 0
                 try:
+                    games = running_games(self.game)
+                    if len(games) != 1:
+                        self.clear('waiting_for_game', detail='检测到多个游戏进程，请只保留一个' if games else None)
+                        self.stop.wait(1)
+                        continue
+                    pid = games[0]
                     self.clear('discovering', pid)
                     started = time.monotonic()
                     seed, instances = SessionProbe(pid, self.directory, self.stop, self.progress).discover()
@@ -297,8 +327,12 @@ class Backend:
                     SessionWatch(pid, self.directory, seed, instances, self.stop, self.progress).run()
                 except InterruptedError:
                     break
+                except MonitorBusyError as exc:
+                    self.report_failure('waiting_for_monitor', 0, exc)
+                except StatusWriteError as exc:
+                    self.report_failure('waiting_for_files', 0, exc)
                 except Exception as exc:
-                    self.clear('waiting_for_backpack', pid, f'{type(exc).__name__}: {exc}')
+                    self.report_failure('waiting_for_backpack', pid, exc)
                 self.stop.wait(3)
         finally:
-            self.clear('stopped')
+            self.safe_clear('stopped')

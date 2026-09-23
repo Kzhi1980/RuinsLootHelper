@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from native_support import ARCHIVE_NAME, SHA256 as RUNTIME_SHA256
 
-VERSION = '0.3.7'
+VERSION = '0.3.10'
 STAGING = ROOT / ('release-staging-' + VERSION)
 APP = STAGING / '破晓装备助手'
 DESTINATION = ROOT / 'releases' / VERSION

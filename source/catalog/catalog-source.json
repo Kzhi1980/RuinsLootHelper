@@ -1,0 +1,176 @@
+{
+  "game_build": "25347683",
+  "steam_app_id": 4364910,
+  "assets": [
+    {
+      "path": "RuinsOfDawn/Content/SaveGame/简化物品属性.uasset",
+      "container": "RuinsOfDawn-Windows_0_P.utoc",
+      "size": 3776,
+      "sha256": "144fb818dc1ab3bd2d0cba36b788dbd6ed9d18f17f2b7bd86a295c4f6efbe837"
+    },
+    {
+      "path": "RuinsOfDawn/Content/UI/套装/套装名字.uasset",
+      "container": "RuinsOfDawn-Windows_0_P.utoc",
+      "size": 8190,
+      "sha256": "98f17614bac6b7cf3ea4b642a4e5e9b3e4b6ce3b1c837b6a5769bbd45d71d9df"
+    },
+    {
+      "path": "RuinsOfDawn/Content/UI/套装/套装名字中文.uasset",
+      "container": "RuinsOfDawn-Windows_0_P.utoc",
+      "size": 6544,
+      "sha256": "3cc274e257490b8b4bac4f922e68ffb94e8cab36a819593a2a92f1e74d96d928"
+    },
+    {
+      "path": "RuinsOfDawn/Content/UI/套装/套装属性数据表.uasset",
+      "container": "RuinsOfDawn-Windows_0_P.utoc",
+      "size": 16416,
+      "sha256": "c67e571a06d1bdb654661888724e5370b02dcf1304c37a39c3ae61211fb8be58"
+    },
+    {
+      "path": "RuinsOfDawn/Content/UI/怪物图鉴/图鉴奖励枚举.uasset",
+      "container": "RuinsOfDawn-Windows_0_P.utoc",
+      "size": 2079,
+      "sha256": "558014dedd754ee02ddb47d0eb5b83e6b536d117edbb95dee70585be4bd5759d"
+    },
+    {
+      "path": "RuinsOfDawn/Content/UI/背包/格子属性.uasset",
+      "container": "RuinsOfDawn-Windows_0_P.utoc",
+      "size": 2994,
+      "sha256": "50e38b9d4bb5eb18cf0fedbcd89615178b0ba52f98e49a04abc12c8d924fd6df"
+    },
+    {
+      "path": "RuinsOfDawn/Content/UI/背包/装备品质.uasset",
+      "container": "RuinsOfDawn-Windows.utoc",
+      "size": 1132,
+      "sha256": "4d0eb281d82ea65b71a7e04f9cb3948d91509a2e35fbd93bc1563f553318cf12"
+    },
+    {
+      "path": "RuinsOfDawn/Content/UI/背包/装备基础属性.uasset",
+      "container": "RuinsOfDawn-Windows.utoc",
+      "size": 2558,
+      "sha256": "10dd1aae2f2ef5774a0842b7a6cb36d89ad9e6ef3b5e0315a5a89861afc25f6a"
+    },
+    {
+      "path": "RuinsOfDawn/Content/UI/背包/装备属性.uasset",
+      "container": "RuinsOfDawn-Windows_0_P.utoc",
+      "size": 3048,
+      "sha256": "b0f7e5c58822476a7a30f503ef5eaae98283283020cbb0ee9575834e47c50447"
+    },
+    {
+      "path": "RuinsOfDawn/Content/UI/背包/装备技能属性.uasset",
+      "container": "RuinsOfDawn-Windows.utoc",
+      "size": 20372,
+      "sha256": "f24c71a29d642bc88c37334d8c93f07473ec8f1ebfc1419bc0929f9c879b18a4"
+    },
+    {
+      "path": "RuinsOfDawn/Content/UI/背包/装备极品属性.uasset",
+      "container": "RuinsOfDawn-Windows.utoc",
+      "size": 1519,
+      "sha256": "322a35748308c532c0de4c773db9c29d74c08f7a569b0cc8ef9f470152d3789d"
+    },
+    {
+      "path": "RuinsOfDawn/Content/UI/背包/装备特殊属性.uasset",
+      "container": "RuinsOfDawn-Windows.utoc",
+      "size": 9245,
+      "sha256": "29f28b53687add32a2fadd56b69b4f58d0324b019bded19ff674e23f68bd1dd8"
+    },
+    {
+      "path": "RuinsOfDawn/Content/UI/背包/装备类型.uasset",
+      "container": "RuinsOfDawn-Windows.utoc",
+      "size": 1648,
+      "sha256": "f44a8f42ca05b49ef5e506b696ab225d0593b7ef80270c479859fb56683d1fcc"
+    },
+    {
+      "path": "RuinsOfDawn/Content/UI/附魔/附魔非技能属性.uasset",
+      "container": "RuinsOfDawn-Windows.utoc",
+      "size": 13001,
+      "sha256": "a6c52a8198ddadcefe94a945b4e06e32ebf1ff4996f727adb16243c3174d1d13"
+    },
+    {
+      "path": "RuinsOfDawn/Content/公用/所有非技能属性枚举.uasset",
+      "container": "RuinsOfDawn-Windows.utoc",
+      "size": 10339,
+      "sha256": "075197d50f57804f1c0a34c16137c507b7bbfcd3bd021eb6ada549666d2b3c2e"
+    },
+    {
+      "path": "RuinsOfDawn/Content/物品数据/图鉴数据表.uasset",
+      "container": "RuinsOfDawn-Windows_0_P.utoc",
+      "size": 20591,
+      "sha256": "c5ed1d9571ef6ae3cc7fecd9edea1d4bd1df4082cfa22a281c396fef3ac106b4"
+    },
+    {
+      "path": "RuinsOfDawn/Content/物品数据/装备等阶.uasset",
+      "container": "RuinsOfDawn-Windows_0_P.utoc",
+      "size": 1826,
+      "sha256": "50cf0b5f79aa8c121dd7ab424acb1214885274573dbaf9b7a1ddc70ca452514c"
+    },
+    {
+      "path": "RuinsOfDawn/Content/物品数据/装备表10T6.uasset",
+      "container": "RuinsOfDawn-Windows_0_P.utoc",
+      "size": 8838,
+      "sha256": "5c7750da06d995d80c9000982fcbafcb90ff6912098e301ba95b4740a8a9413b"
+    },
+    {
+      "path": "RuinsOfDawn/Content/物品数据/装备表1兽人档.uasset",
+      "container": "RuinsOfDawn-Windows_0_P.utoc",
+      "size": 13029,
+      "sha256": "44e3c20c52a18408a67d3dd61a1984eed053164225deca63cd1269aac6e2da48"
+    },
+    {
+      "path": "RuinsOfDawn/Content/物品数据/装备表2骷髅档.uasset",
+      "container": "RuinsOfDawn-Windows_0_P.utoc",
+      "size": 12307,
+      "sha256": "896f412063a5ef3059a95801f267a4c1e9d1ef1aecd9119866975bf1688438c6"
+    },
+    {
+      "path": "RuinsOfDawn/Content/物品数据/装备表3僵尸档.uasset",
+      "container": "RuinsOfDawn-Windows_0_P.utoc",
+      "size": 13127,
+      "sha256": "d6073d15578ef99eaa588dfbe12292a06cdb049a18725cab1372e6cda7ea5aec"
+    },
+    {
+      "path": "RuinsOfDawn/Content/物品数据/装备表4虫洞档.uasset",
+      "container": "RuinsOfDawn-Windows_0_P.utoc",
+      "size": 15874,
+      "sha256": "166f267538f96fc24359283b21f5907b0996e2f2683498729b5d32e0c8178d4c"
+    },
+    {
+      "path": "RuinsOfDawn/Content/物品数据/装备表5T1.uasset",
+      "container": "RuinsOfDawn-Windows_0_P.utoc",
+      "size": 25454,
+      "sha256": "83ac63ccccbda1f24538d7ea7233199e74ed8d94d057538151bbee14356d31bf"
+    },
+    {
+      "path": "RuinsOfDawn/Content/物品数据/装备表6T2.uasset",
+      "container": "RuinsOfDawn-Windows_0_P.utoc",
+      "size": 20935,
+      "sha256": "6015f9d336dccd2c7fd0c5287f237e1f64094518c53ad46e79a079644552517b"
+    },
+    {
+      "path": "RuinsOfDawn/Content/物品数据/装备表7T3.uasset",
+      "container": "RuinsOfDawn-Windows_0_P.utoc",
+      "size": 12683,
+      "sha256": "5ef0bfb8b7a2a9991c00c031bc41b8fa9a40ffaf4ea41f6cf149762e533717ac"
+    },
+    {
+      "path": "RuinsOfDawn/Content/物品数据/装备表8T4.uasset",
+      "container": "RuinsOfDawn-Windows_0_P.utoc",
+      "size": 11258,
+      "sha256": "9bc443509245e26327d3bb8bd512ef04e4fa08b989128bf205fc19d8bcad3ff8"
+    },
+    {
+      "path": "RuinsOfDawn/Content/物品数据/装备表9ZT5.uasset",
+      "container": "RuinsOfDawn-Windows_0_P.utoc",
+      "size": 10831,
+      "sha256": "c8e625d7b1358291a4e8867ab396267095dbc89d2ddf25893069f8af684cdcaf"
+    },
+    {
+      "path": "RuinsOfDawn/Content/物品数据/装备表传奇和特殊.uasset",
+      "container": "RuinsOfDawn-Windows_0_P.utoc",
+      "size": 37407,
+      "sha256": "dc8e9dc96e4cbaa07185380b548aca53a676d19bb187c771fd5a11e51804478d"
+    }
+  ],
+  "equipment_rows": 549,
+  "t6_rows": 42
+}

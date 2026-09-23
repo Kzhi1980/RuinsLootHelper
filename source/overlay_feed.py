@@ -8,6 +8,7 @@ import threading
 import time
 
 from gear_view import configured_rules, normalize_item, select_sections
+from lock_library import evaluate_protection
 from native_policy import identity
 
 
@@ -23,6 +24,8 @@ class Snapshot:
     ui: dict = field(default_factory=dict)
     rules: list = field(default_factory=list)
     sections: dict = field(default_factory=empty)
+    protected_slots: frozenset | None = None
+    protection_errors: tuple | None = None
     live: bool = False
     error: str | None = None
     stop_requested: bool = False
@@ -45,7 +48,10 @@ class OverlayFeed:
         self.previous_rules = None
         self.rules = []
         self.sections = empty()
+        self.protected_slots = frozenset()
+        self.protection_errors = ()
         self.native_client = None
+        self.reader_state = None
         if start:
             self.thread = threading.Thread(target=self.run, name='OverlayFiles', daemon=True)
             self.thread.start()
@@ -60,6 +66,13 @@ class OverlayFeed:
         with self.lock:
             self.pending[name] = value
         self.wake.set()
+
+    def set_reader_state(self, value):
+        with self.lock:
+            changed = self.reader_state != value
+            self.reader_state = copy.deepcopy(value)
+        if changed:
+            self.wake.set()
 
     def _flush(self):
         with self.lock:
@@ -120,14 +133,28 @@ class OverlayFeed:
             live = status.get('status') == 'watching' and 0 <= age < 3 and current.get('status') == 'watching'
         except (KeyError, ValueError, TypeError):
             live = False
+        with self.lock:
+            reader_state = self.reader_state
+        if reader_state is not None:
+            live = bool(live and reader_state.get('status') == 'watching'
+                        and reader_state.get('game_pid') == status.get('game_pid'))
         # Ignore timestamps and free-slot counters: they do not change matches.
         inputs = (live, current.get('items', []), self.rules, settings)
         if inputs != self.previous_input:
-            self.sections = select_sections(current, self.rules, settings) if live else empty()
+            # Lock protection must survive hiding locked items from the display.
+            all_sections = select_sections(current, self.rules, dict(settings, include_locked=True)) if live else empty()
+            protection = evaluate_protection(current.get('items', []) if live else [], settings, all_sections)
+            self.protected_slots, self.protection_errors = protection.slots, protection.errors
+            self.sections = {key: [item for item in rows if settings.get('include_locked', False) or not item['locked']]
+                             for key, rows in all_sections.items()}
+            self.sections['lock_library'] = [normalize_item(entry, self.rules) for entry in current.get('items', [])
+                                             if entry['index'] in self.protected_slots]
             self.previous_input = inputs
         snapshot = Snapshot(status=status, current=current, settings=settings,
             ui=dict(values['feature-status.json'] or {}, native=values['native-status.json'] or {}),
-            rules=self.rules, sections=self.sections, live=live,
+            rules=self.rules, sections=self.sections, protected_slots=self.protected_slots,
+            protection_errors=self.protection_errors, live=live,
+            error=reader_state.get('error') if reader_state is not None else None,
             stop_requested=any((self.directory / name).exists() for name in ('stop.flag', 'overlay-stop.flag')))
         if values['native-schema.json']:
             if self.native_client is None:

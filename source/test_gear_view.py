@@ -115,28 +115,29 @@ class FilterTests(unittest.TestCase):
     def test_catalog_includes_current_official_t6_equipment(self):
         m = self.module()
         catalog = m.catalog_data()
-        self.assertEqual(catalog['source_build'], '25281393')
+        self.assertEqual(catalog['source_build'], '25347683')
         t6 = [row for row in catalog['equipment'] if row['tier_raw'] == 10]
-        self.assertEqual(len(t6), 24)
+        self.assertEqual(len(t6), 42)
         xiaoyin = next(row for row in t6 if row['name'] == '霄引')
-        self.assertEqual(xiaoyin['base']['基础属性']['魔法上限'], 48)
-        self.assertEqual(next(row for row in t6 if row['name'] == '灭世戒指')['set_name'], '灭世')
-        self.assertEqual(next(row for row in t6 if row['name'] == '星陨法衣')['set_name'], '星陨')
-        self.assertEqual(next(row for row in t6 if row['name'] == '冥墟头盔')['set_name'], '冥墟')
+        self.assertEqual(xiaoyin['base']['基础属性']['魔法上限'], 52)
+        self.assertEqual(next(row for row in t6 if row['name'] == '冰原戒指')['set_name'], '寒冰之力')
+        self.assertEqual(next(row for row in t6 if row['name'] == '冰原腰带')['set_name'], '冰原')
+        self.assertEqual(next(row for row in t6 if row['name'] == '星陨法衣')['set_name'], '')
 
     def test_locked_gear_is_hidden_in_both_sections(self):
         m = self.module()
         item = {'名字': '追风', '等阶': 9, '技能1': 64, '锁定': True, '极品属性': {'特殊属性': {'幸运': 4}}}
         self.assertEqual(m.select_sections({'items': [{'index': 0, 'item': item}]}), {'numeric': [], 'legendary': [], 'lower': []})
 
-    def test_legendary_prompt_only_allows_the_four_supported_types(self):
+    def test_upper_skills_can_use_all_equipment_parts_but_preserve_old_defaults(self):
         m = self.module()
         for kind in range(11):
             item = {'type_id': kind, 'tier_raw': 9, 'inherent_skills': [{'id': 64}]}
-            self.assertEqual(m.legend_allowed(item, {'legendary_pairs': [f'9:{kind}']}), kind in (1, 4, 6, 9))
+            self.assertEqual(m.legend_allowed(item, {'legendary_pairs': [f'9:{kind}']}), kind in range(1, 11))
+            self.assertEqual(m.legend_allowed(item, {}), kind in (1, 4, 6, 9))
         treasure = next(x for x in m.catalog_data()['equipment'] if x['type_id'] == 9)
         view = m.normalize_item({'index': 0, 'item': {'名字': treasure['name'], '等阶': treasure['tier_raw']}})
-        self.assertEqual(view['type_label'], '宝物')
+        self.assertEqual(view['type_label'], '法宝')
 
     def test_lower_skill_selection_filters_only_lower_results(self):
         m = self.module()

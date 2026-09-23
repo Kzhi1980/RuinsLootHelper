@@ -84,13 +84,13 @@ class SettingsTests(unittest.TestCase):
             self.assertIn('下技能', [dialog.tabs.tab(tab, 'text') for tab in dialog.tabs.tabs()])
             self.assertEqual(len(dialog.enabled_vars), 74)
             self.assertEqual(sum(x.get() for x in dialog.enabled_vars), 11)
-            self.assertEqual([x['label'] for x in dialog.types], ['武器', '项链', '戒指', '宝物'])
-            self.assertEqual(len(dialog.pair_vars), 24)
+            self.assertEqual([x['label'] for x in dialog.types], ['武器', '衣服', '头盔', '项链', '手镯', '戒指', '腰带', '靴子', '法宝', '其他'])
+            self.assertEqual(len(dialog.pair_vars), 60)
             self.assertEqual(sum(x.get() for x in dialog.pair_vars.values()), 4)
             dialog.choose_pairs('t6')
             self.assertEqual(
                 [key for key, variable in dialog.pair_vars.items() if variable.get()],
-                ['10:1', '10:4', '10:6', '10:9'],
+                ['10:1', '10:2', '10:3', '10:4', '10:5', '10:6', '10:7', '10:8', '10:9', '10:10'],
             )
             dialog.query.set('物理伤害')
             i = next(i for i, x in enumerate(dialog.rules) if x['field'] == '近战伤害增加')
@@ -185,15 +185,14 @@ class SettingsTests(unittest.TestCase):
             library.tier.set('T6')
             library.part.set('武器')
             library.redraw()
-            self.assertEqual(library.tree.get_children(), ('10:1:霄引',))
-            self.assertIn('灭世', library.set_groups)
+            self.assertEqual(set(library.tree.get_children()), {'10:1:霄引', '10:1:传奇霄引'})
+            self.assertIn('寒冰之力', library.set_groups)
             library.query.set('')
             library.part.set('全部部位')
-            library.set_group.set('灭世')
+            library.set_group.set('寒冰之力')
             library.redraw()
             self.assertEqual(set(library.tree.get_children()), {
-                '10:2:灭世甲', '10:3:灭世头盔', '10:4:灭世项链', '10:5:灭世手镯',
-                '10:6:灭世戒指', '10:7:灭世腰带', '10:8:灭世靴',
+                '10:4:冰原项链', '10:5:冰原手镯', '10:6:冰原戒指',
             })
             library.set_group.set('全部套装')
             library.query.set('霄引')
@@ -202,7 +201,7 @@ class SettingsTests(unittest.TestCase):
             self.assertEqual(library.threshold_options('10:1:霄引'),
                              ('攻击下限', '攻击上限', '魔法下限', '魔法上限'))
             self.assertEqual(library.threshold_label('10:1:霄引', '魔法上限'),
-                             '魔法上限（图鉴满值 48）')
+                             '魔法上限（装备表基准 52）')
             library.toggle('10:1:霄引')
             library.set_threshold('10:1:霄引', {'魔法上限': 48})
             dialog.apply()

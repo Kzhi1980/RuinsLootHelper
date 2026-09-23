@@ -24,7 +24,7 @@ KNOWN_SKILLS = {64: '冲刺无冷却'}
 _skill_cache = {'next_check': 0, 'names': dict(KNOWN_SKILLS)}
 _catalog = None
 _equipment_index = None
-LEGENDARY_TYPES = {1: '武器', 4: '项链', 6: '戒指', 9: '宝物'}
+DEFAULT_LEGENDARY_TYPES = frozenset((1, 4, 6, 9))
 
 
 def catalog_data():
@@ -33,6 +33,11 @@ def catalog_data():
         path = pathlib.Path(__file__).with_name('catalog') / 'filter-catalog.json'
         _catalog = json.loads(path.read_text(encoding='utf-8'))
     return _catalog
+
+
+# A live upper skill may occur on any official equipment part. Keep the old
+# default selection, but allow users to select belts, boots and other parts.
+LEGENDARY_TYPES = {entry['id']: entry['label'] for entry in catalog_data()['equipment_types'] if entry['id'] > 0}
 
 
 def configured_rules(saved=None):
@@ -71,7 +76,7 @@ def legend_allowed(item, settings):
         return False
     pairs = settings.get('legendary_pairs')
     if pairs is None:
-        return item['tier_raw'] == 9
+        return item['tier_raw'] == 9 and item['type_id'] in DEFAULT_LEGENDARY_TYPES
     return f"{item['tier_raw']}:{item['type_id']}" in pairs
 
 
@@ -112,7 +117,7 @@ def normalize_item(entry, rules=None):
     tier = item.get('等阶', 0)
     equipment = equipment_info(name, tier)
     return {'index': entry['index'], 'name': name, 'quality': item.get('品质'),
-            'tier_raw': tier, 'tier_label': equipment.get('tier', f'T{tier - 4}' if 5 <= tier <= 9 else '其他'),
+            'tier_raw': tier, 'tier_label': equipment.get('tier', f'T{tier - 4}' if 5 <= tier <= 11 else '其他'),
             'type_id': equipment.get('type_id'),
             'type_label': LEGENDARY_TYPES.get(equipment.get('type_id'), equipment.get('type_label', '部位待识别')),
             'locked': bool(item.get('锁定')),

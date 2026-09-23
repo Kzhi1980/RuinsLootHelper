@@ -31,7 +31,9 @@ class Switch(tk.Canvas):
         self.create_line(12, 12, 30, 12, fill=color, width=20, capstyle='round')
         x = 30 if on else 12
         self.create_oval(x-7, 5, x+7, 19, fill=BG if on else '#deded9', outline='')
-        if self.focus_get() is self:
+        # A ttk popup exists only in Tcl; focus_get() cannot resolve it to a
+        # Python widget and raises KeyError('popdown'). Compare widget paths.
+        if str(self.tk.call('focus')) == str(self):
             self.create_rectangle(1, 1, 40, 22, outline=MUTED)
 
     def invoke(self):

@@ -3,7 +3,7 @@ import time
 import uuid
 
 from live_items import clean
-from lock_library import selected_indices
+from lock_library import evaluate_protection
 from native_policy import AutoLockNotices, LockPolicy, identity
 from pickup_library import codex_names, codex_selection, pickup_options
 
@@ -126,13 +126,14 @@ class NativeClient:
             'rift_permission': self.rift_permission,
             'recycle': None}
         self.policy.observe(snapshot.current.get('items', []) if usable else [], now)
-        selected = config.get('lock_sections', {'numeric': True, 'legendary': False, 'lower': False})
-        library_config = snapshot.settings.get('lock_library', {})
-        library_config = library_config if isinstance(library_config, dict) else {}
-        indices = set() if library_config.get('schema') == 2 else {
-            entry['index'] for key, entries in snapshot.sections.items() if selected.get(key, False) for entry in entries}
-        indices.update(selected_indices(snapshot.current.get('items', []) if usable else [],
-                                       library_config, snapshot.sections))
+        if snapshot.protected_slots is not None and snapshot.protection_errors is not None:
+            indices, rule_errors = set(snapshot.protected_slots), snapshot.protection_errors
+        else:
+            protection = evaluate_protection(snapshot.current.get('items', []), snapshot.settings, snapshot.sections)
+            indices, rule_errors = set(protection.slots), protection.errors
+        if not usable:
+            indices = set()
+        request['lock_rule_errors'] = list(rule_errors)
         ready = (fresh_status(native) and native.get('protocol') == PROTOCOL and native.get('ready') and native.get('session') == self.session
                  and native.get('player_address') == player and native.get('game_pid') == pid)
         if ready and self.rift_permission is None:
@@ -181,7 +182,10 @@ class NativeClient:
             self.policy.pending.clear()
         request['locks'] = self.locks[:1] if ready and active else []
         self.lock_notices.sent(request['locks'], now)
-        if request['auto_recycle'] and ready and active and native.get('auto_recycle_supported'):
+        if rule_errors:
+            request['recycle_wait'] = 'invalid_lock_rules'
+            self.recycle_key, self.recycle_command = None, None
+        elif request['auto_recycle'] and ready and active and native.get('auto_recycle_supported'):
             request['recycle'], request['recycle_wait'] = self.prepare_recycle(
                 snapshot.current, indices, schema, now)
             if request['recycle'] is None:

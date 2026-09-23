@@ -9,6 +9,7 @@ SHA256 = '29367ce89f3637a537d507f2c79b9d33df3d145c63fd8bb0179f737a5ce46374'
 ARCHIVE_NAME = 'UE4SS-2bfa839f.zip'
 ROOT = Path(__file__).resolve().parent
 RUNTIME_FILES = ('dwmapi.dll', 'ue4ss/UE4SS.dll', 'ue4ss/LICENSE', 'ue4ss/UE4SS-settings.ini')
+LEGACY_BAGUA_SHA256 = 'cc3b03c9d400664aa99ab6aa0f4a66b4a19eff56e6ccbdb60c41e9d743b6bef5'
 
 
 def sha(path):
@@ -23,6 +24,21 @@ def write_atomic(path, content):
         temporary.replace(path)
     finally:
         temporary.unlink(missing_ok=True)
+
+
+def legacy_bagua_migration(target):
+    """Only the exact old assistant probe may be retired; other mods stay intact."""
+    module = target / 'ue4ss/Mods/RuinsBaguaMarker'
+    main, enabled = module / 'Scripts/main.lua', module / 'enabled.txt'
+    backup = module / 'enabled.txt.ruins-helper-disabled.bak'
+    if any(not path.resolve().is_relative_to(target) for path in (main, enabled, backup)):
+        return None
+    if not main.is_file() or not enabled.is_file() or sha(main) != LEGACY_BAGUA_SHA256:
+        return None
+    original = enabled.read_bytes()
+    if backup.exists() and backup.read_bytes() != original:
+        raise ValueError('旧八卦测试组件的备份内容不一致，已保留原文件。')
+    return enabled, backup, original
 
 
 def installation_status(game, directory):
@@ -114,6 +130,9 @@ def install(game, directory, archive=None):
     receipt = {'directory': str(target), 'game': str(game), 'framework_sha256': SHA256,
                'files': {name: hashlib.sha256(data).hexdigest() for name, data in content.items()},
                'state': 'installed_waiting_for_game_restart'}
+    legacy = legacy_bagua_migration(target)
+    if legacy or previous.get('disabled_legacy_modules'):
+        receipt['disabled_legacy_modules'] = ['RuinsBaguaMarker']
     originals, changed = {}, []
     try:
         # Loader last. A failed first install cannot be loaded on game startup.
@@ -124,6 +143,15 @@ def install(game, directory, archive=None):
                 continue  # Do not replace an unchanged DLL that the game has loaded.
             write_atomic(destination, content[name])
             changed.append(destination)
+        if legacy:
+            enabled, backup, original = legacy
+            if not backup.exists():
+                originals[backup] = None
+                write_atomic(backup, original)
+                changed.append(backup)
+            originals[enabled] = original
+            enabled.unlink()
+            changed.append(enabled)
         write_atomic(receipt_path, json.dumps(receipt, ensure_ascii=False, indent=2).encode('utf8'))
     except Exception:
         for path in reversed(changed):

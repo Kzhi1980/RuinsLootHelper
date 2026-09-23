@@ -53,7 +53,7 @@ def game_bounds(hwnd):
 
 def marker_slots(sections, config):
     selected = config.get('sections', {})
-    return sorted({item['index'] for key in ('numeric', 'legendary', 'lower')
+    return sorted({item['index'] for key in ('numeric', 'legendary', 'lower', 'lock_library')
                    if selected.get(key, True) for item in sections.get(key, [])
                    if isinstance(item.get('index'), int) and 0 <= item['index'] < 60 and not item.get('locked', False)})
 

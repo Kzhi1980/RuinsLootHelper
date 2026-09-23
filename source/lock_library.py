@@ -1,5 +1,6 @@
 """Complete lock rules: AND within a rule, OR only between explicit rules."""
 import copy
+from dataclasses import dataclass
 from functools import lru_cache
 import math
 
@@ -7,8 +8,9 @@ from gear_view import catalog_data
 from pickup_library import equipment_key
 
 
-QUALITY_LABELS = ("陈旧", "普通", "精良", "完美")
-QUALITY_BY_VALUE = {0: "陈旧", 1: "普通", 2: "精良", 3: "完美"}
+# Values come from the game's 装备品质 enum, not their display order.
+QUALITY_BY_VALUE = {entry['id']: entry['label'] for entry in catalog_data()['qualities']}
+QUALITY_LABELS = tuple(QUALITY_BY_VALUE.values())
 
 
 def _number(value):
@@ -78,13 +80,22 @@ class LockLibrary:
     """One rule. Selecting equipment only narrows its scope."""
     def __init__(self, rows, config=None, index=None):
         self.rows, self.by_name_tier = index or _build_index(rows)
-        config = config if isinstance(config, dict) else {}
         self.valid = True
+        self.errors = []
+        if config is None:
+            config = {}
+        elif not isinstance(config, dict):
+            self.invalid('规则格式无法识别')
+            config = {}
+        for key, label in (('enabled', '启用'), ('keep_all', '全品质保留'),
+                           ('upper', '上技能'), ('lower', '下技能'), ('numeric', '红色词条')):
+            if key in config and type(config[key]) is not bool:
+                self.invalid(f'{label}开关格式无效')
         self.enabled = config.get('enabled', True) is True
         self.keep_all = config.get('keep_all', False) is True
         self.set_mode = config.get('set_mode', 'all')
         if self.set_mode not in ('all', 'set', 'non_set'):
-            self.valid = False
+            self.invalid('套装范围无效')
         self.upper = config.get('upper', False) is True
         self.lower = config.get('lower', False) is True
         self.upper_ids = self._ids(config.get('upper_ids', []))
@@ -93,42 +104,48 @@ class LockLibrary:
         self.filter_sections = config.get('filter_sections', [])
         if (not isinstance(self.filter_sections, list)
                 or any(key not in ('numeric', 'legendary', 'lower') for key in self.filter_sections)):
-            self.valid = False
+            self.invalid('原有筛选条件无法识别')
             self.filter_sections = []
         qualities = config.get("qualities", ())
         self.qualities = frozenset(value for value in qualities if isinstance(value, str) and value in QUALITY_LABELS) \
             if isinstance(qualities, (list, tuple, set)) else frozenset()
-        if qualities and (not self.qualities or len(self.qualities) != len(set(map(str, qualities)))):
-            self.valid = False
+        if (not isinstance(qualities, (list, tuple, set)) or
+                any(not isinstance(value, str) or value not in QUALITY_LABELS for value in qualities)):
+            self.invalid('品质条件无法识别')
         quality_tiers = config.get("quality_tiers", ())
         self.quality_tiers = frozenset(value for value in quality_tiers
                                        if type(value) is int and 0 <= value <= 99) \
             if isinstance(quality_tiers, (list, tuple, set)) else frozenset()
-        if quality_tiers and (not isinstance(quality_tiers, (list, tuple, set))
-                              or any(type(value) is not int or not 0 <= value <= 99 for value in quality_tiers)):
-            self.valid = False
+        if (not isinstance(quality_tiers, (list, tuple, set))
+                or any(type(value) is not int or not 0 <= value <= 99 for value in quality_tiers)):
+            self.invalid('T 级条件无法识别')
         keys = config.get("equipment_keys", ())
         self.equipment_keys = frozenset(value for value in keys if isinstance(value, str)) \
             if isinstance(keys, (list, tuple, set)) else frozenset()
-        if keys and (not isinstance(keys, (list, tuple, set)) or any(not isinstance(value, str) for value in keys)):
-            self.valid = False
+        if (not isinstance(keys, (list, tuple, set)) or
+                any(not isinstance(value, str) or value not in self.rows for value in keys)):
+            self.invalid('指定装备不在当前装备库中')
         self.thresholds = self._thresholds(config.get("thresholds", {}))
+
+    def invalid(self, message):
+        self.valid = False
+        self.errors.append(message)
 
     def _ids(self, values):
         if not isinstance(values, (list, tuple)) or any(type(v) is not int or v <= 0 for v in values):
-            self.valid = False
+            self.invalid('指定技能编号无效')
             return ()
         return tuple(values)
 
     def _thresholds(self, raw):
         if not isinstance(raw, dict):
-            self.valid = False
+            self.invalid('装备门槛格式无效')
             return {}
         result = {}
         for key, fields in raw.items():
             row = self.rows.get(key)
             if not isinstance(key, str) or row is None or not isinstance(fields, dict):
-                self.valid = False
+                self.invalid(f'{key}：门槛装备或格式无法识别')
                 continue
             allowed = _base_fields(row)
             values = {field: value for field, value in fields.items()
@@ -137,7 +154,8 @@ class LockLibrary:
             if values:
                 result[key] = values
             if len(values) != len(fields):
-                self.valid = False
+                invalid = '、'.join(str(field) for field in fields if field not in values)
+                self.invalid(f'{key}：门槛字段或数值无效（{invalid}）')
         return result
 
     def key_for_item(self, item):
@@ -204,7 +222,8 @@ def rules_from_settings(settings):
         rules = saved.get('rules', [])
         return copy.deepcopy(rules) if isinstance(rules, list) else []
     result = []
-    if any(saved.get(key) for key in ('qualities', 'equipment_keys', 'thresholds')):
+    if (any(saved.get(key) for key in ('qualities', 'equipment_keys', 'thresholds')) or
+            not LockLibrary((), saved, index=_catalog_index()).valid):
         result.append(dict(copy.deepcopy(saved), name='原有装备保留'))
         # Existing equipment restrictions form one complete rule. Do not create
         # extra legacy filter routes that bypass its quality or numeric gates.
@@ -218,19 +237,42 @@ def rules_from_settings(settings):
     return result
 
 
-def selected_indices(entries, config, sections=None):
-    """Return inventory slots protected by the additional library rules."""
-    if not isinstance(entries, list) or not isinstance(config, dict):
-        return set()
+@dataclass(frozen=True)
+class Protection:
+    slots: frozenset = frozenset()
+    errors: tuple = ()
+
+
+def config_error(config):
+    if not isinstance(config, dict):
+        return '锁定规则格式无法识别，请删除并重建规则'
+    if 'schema' in config:
+        if config['schema'] != 2 or not isinstance(config.get('rules'), list):
+            return '锁定规则版本或列表无效，请删除并重建规则'
+    return None
+
+
+def evaluate_rules(entries, config, sections=None):
+    """Keep a failed rule evaluation distinct from a valid empty match set."""
+    error = config_error(config)
+    if error:
+        return Protection(errors=(error,))
     rows, names = _catalog_index()
     raw_rules = config.get('rules', []) if config.get('schema') == 2 else [config]
-    if not isinstance(raw_rules, list):
-        return set()
-    libraries = [LockLibrary((), rule, index=(rows, names)) for rule in raw_rules if isinstance(rule, dict)]
+    libraries, errors = [], []
+    for number, rule in enumerate(raw_rules, 1):
+        if not isinstance(rule, dict):
+            errors.append(f'规则 {number}：格式无效，请删除并重建')
+            continue
+        library = LockLibrary((), rule, index=(rows, names))
+        libraries.append(library)
+        # Only a deliberate boolean false opts out of a broken rule.
+        if rule.get('enabled') is not False and not library.valid:
+            errors.append(f'规则 {number}（{rule.get("name", "未命名")}）：' + '；'.join(library.errors))
     filter_indices = {name: {entry.get('index') for entry in entries if isinstance(entry, dict)}
                       for name, entries in (sections or {}).items()}
     result = set()
-    for entry in entries:
+    for entry in entries if isinstance(entries, list) else ():
         if not isinstance(entry, dict):
             continue
         index, item = entry.get("index"), entry.get("item")
@@ -242,4 +284,23 @@ def selected_indices(entries, config, sections=None):
         hits = {name for name, indices in filter_indices.items() if index in indices}
         if any(library.reasons(item, hits) for library in libraries):
             result.add(index)
-    return result
+    return Protection(frozenset(result), tuple(errors))
+
+
+def selected_indices(entries, config, sections=None):
+    """Compatibility view for callers that only display matching inventory slots."""
+    return set(evaluate_rules(entries, config, sections).slots)
+
+
+def evaluate_protection(entries, settings, sections=None):
+    saved = settings.get('lock_library', {})
+    error = config_error(saved)
+    if error:
+        return Protection(errors=(error,))
+    config = {'schema': 2, 'rules': rules_from_settings(settings)}
+    return evaluate_rules(entries, config, sections)
+
+
+def protected_indices(entries, settings, sections=None):
+    """One decision path for marks, automatic locks and recycle protection."""
+    return set(evaluate_protection(entries, settings, sections).slots)

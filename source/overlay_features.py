@@ -17,7 +17,7 @@ class FeatureSettings:
         self.marker_enabled = tk.BooleanVar(value=markers.get('enabled', False))
         self.automatic = tk.BooleanVar(value=markers.get('automatic', True))
         self.marker_sections = {key: tk.BooleanVar(value=markers.get('sections', {}).get(key, True))
-                                for key in ('numeric', 'legendary', 'lower')}
+                                for key in ('numeric', 'legendary', 'lower', 'lock_library')}
         self.grid = markers.get('grid')
         label(self.marker_tab, '背包定位', size=20, bold=True).pack(anchor='w', pady=(6, 8))
         self.marker_page()
@@ -33,9 +33,9 @@ class FeatureSettings:
         d.check(self.marker_tab, '自动定位格子（识别顶部的锁，跟随移动和缩放）', self.automatic).pack(anchor='w', padx=12, pady=(0, 10))
         row = tk.Frame(self.marker_tab, bg=BG)
         row.pack(fill='x', padx=16, pady=8)
-        for key, title in (('numeric', '词条'), ('legendary', '上技能'), ('lower', '下技能')):
+        for key, title in (('numeric', '词条'), ('legendary', '上技能'), ('lower', '下技能'), ('lock_library', '装备保留规则')):
             d.check(row, title, self.marker_sections[key]).pack(side='left', padx=(0, 24))
-        self.label(self.marker_tab, '沿用“装备筛选”的条件，标记只显示在打开的主背包中。\n装备整理、换格后标记跟着更新；锁定、回收、移出后清除。')
+        self.label(self.marker_tab, '按所选的词条、技能或装备保留规则标记，只显示在打开的主背包中。\n装备整理、换格后标记跟着更新；锁定、回收、移出后清除。')
         d.button(self.marker_tab, '识别失败时：辅助校准', self.calibrate).pack(anchor='w', padx=16, pady=12)
         self.grid_label = self.label(self.marker_tab, '首次打开背包会自动识别，无需先手动校准。', wraplength=620)
         self.label(self.marker_tab, '自动识别顶部的锁，并核对下方 60 格。\n拖动背包、改变分辨率或界面缩放后，自动重扫位置和格子大小。\n识别失败时，点“辅助校准”再点一下顶部的锁。\n关闭自动定位时，辅助校准可手动框选背包。圈圈不挡鼠标。', wraplength=620)

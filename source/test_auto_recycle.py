@@ -129,7 +129,7 @@ class RecycleClientTests(unittest.TestCase):
         s = self.full_bag()
         self.client = client_fixture.NativeClient()
         protected = s.current['items'][0]['item']
-        protected.update({'锁定': False, '名字': '霄引', '等阶': 10, '品质': 3,
+        protected.update({'锁定': False, '名字': '霄引', '等阶': 10, '品质': 4,
                           '基础属性': {'攻击上限': 45, '魔法上限': 48}})
         s.current['backpack_slot_states'][0] = [1, False]
         s.settings['lock_library'] = {'qualities': ['完美'], 'quality_tiers': [10]}

@@ -11,12 +11,11 @@ def reader_main(game, directory, stop, messages):
     from release_runtime import Backend
 
     class Worker(Backend):
-        def progress(self, status, pid=0, detail=None):
-            super().progress(status, pid, detail)
+        def notify(self):
             value = dict(self.state, last_scan=self.last_scan)
             try:
                 messages.put_nowait(value)
-            except queue.Full:
+            except (queue.Full, OSError, ValueError):
                 pass  # Disk heartbeat is also available; never stall sampling.
 
     try:
@@ -24,8 +23,19 @@ def reader_main(game, directory, stop, messages):
         backend.stop = stop
         backend.run()
     except BaseException:
-        Path(directory, 'worker-error.txt').write_text(traceback.format_exc(), encoding='utf8')
-        raise
+        detail = traceback.format_exc()
+        try:
+            Path(directory, 'worker-error.txt').write_text(detail, encoding='utf8')
+        except OSError:
+            pass
+        try:
+            messages.put_nowait({'status': 'monitor_failed', 'game_pid': 0,
+                                 'worker_pid': os.getpid(), 'error': detail})
+        except (queue.Full, OSError, ValueError):
+            pass
+        # multiprocessing handles an integer SystemExit without writing to
+        # sys.stderr, which is None in a windowless frozen application.
+        raise SystemExit(1) from None
 
 
 class ProcessBackend:
@@ -56,8 +66,9 @@ class ProcessBackend:
             self.last_scan = state.pop('last_scan', self.last_scan)
             self._state = state
         if self.process and not self.process.is_alive() and not self.stop.is_set():
+            detail = self._state.get('error')
             self._state = {'status': 'monitor_failed', 'game_pid': 0,
-                'error': f'读取进程已退出（{self.process.exitcode}），正在恢复'}
+                'error': detail or f'读取进程已退出（{self.process.exitcode}），正在恢复'}
             if not self.restart_at:
                 self.restart_at = time.monotonic() + 5
             elif time.monotonic() >= self.restart_at:

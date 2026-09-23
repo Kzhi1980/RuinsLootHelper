@@ -14,7 +14,7 @@ from game_install import discover, resolve_game
 from release_runtime import write_json
 from worker_process import ProcessBackend
 
-VERSION = '0.3.7'
+VERSION = '0.3.10'
 TITLE = '破晓装备助手'
 DATA_NAME = 'RuinsLootHelper'
 
@@ -134,7 +134,9 @@ def run_overlay(directory, backend, close_after=None):
 
     class PackagedOverlay(loot_overlay.Overlay):
         def tick(self):
-            current_pid = backend.state.get('game_pid', 0)
+            self.reader_state = backend.state
+            self.feed.set_reader_state(self.reader_state)
+            current_pid = self.reader_state.get('game_pid', 0)
             if current_pid != getattr(self, 'session_pid', None):
                 self.session_pid = current_pid
                 self.game = None
