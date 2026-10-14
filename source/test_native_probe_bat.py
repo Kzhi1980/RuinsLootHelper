@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import threading
 import time
 import unittest
 
@@ -62,7 +63,41 @@ class NativeProbeTest(unittest.TestCase):
             env = dict(os.environ, RLH_PROBE_DATA_DIR=str(data), RLH_PROBE_OUTPUT_DIR=str(output),
                        RLH_PROBE_NO_PAUSE="1", RLH_PROBE_SECONDS="0", RLH_PROBE_SKIP_SYSTEM="1")
             command = f'"{os.environ["COMSPEC"]}" /d /s /c ""{copied}""'
-            result = subprocess.run(command, env=env, cwd=package, capture_output=True, timeout=30)
+            stopped = threading.Event()
+            errors = []
+            def heartbeat():
+                # A running helper renews these files. A one-shot timestamp may
+                # expire during PowerShell startup, before the probe can sample.
+                try:
+                    while not stopped.is_set():
+                        stamp = time.time()
+                        files['continuous-status.json']['heartbeat_utc'] = datetime.now(timezone.utc).isoformat()
+                        files['native-status.json']['utc'] = stamp
+                        files['native-request.json']['expires'] = stamp + 1.9
+                        for name in ('continuous-status.json', 'native-status.json', 'native-request.json'):
+                            payload = json.dumps(files[name], ensure_ascii=False).encode('utf8')
+                            pending = data / (name + '.clock.tmp')
+                            pending.write_bytes(payload)
+                            try:
+                                pending.replace(data / name)
+                                before[name] = payload
+                            except PermissionError:
+                                pass
+                            finally:
+                                pending.unlink(missing_ok=True)
+                        stopped.wait(.05)
+                except Exception as exc:
+                    errors.append(exc)
+            producer = threading.Thread(target=heartbeat, daemon=True) if scenario == 'ready' else None
+            if producer:
+                producer.start()
+            try:
+                result = subprocess.run(command, env=env, cwd=package, capture_output=True, timeout=30)
+            finally:
+                stopped.set()
+                if producer:
+                    producer.join(timeout=5)
+            self.assertFalse(errors, errors)
             console = (result.stdout + result.stderr).decode("utf-8", errors="replace")
             self.assertEqual(result.returncode, 0, console)
             logs = list(output.glob("*.log"))

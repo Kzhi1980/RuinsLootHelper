@@ -7,6 +7,31 @@ from overlay_settings import Settings
 
 
 class SettingsTests(unittest.TestCase):
+    def test_comfort_defaults_and_saved_choices_preserve_other_native_settings(self):
+        root = tk.Tk()
+        root.withdraw()
+        saved = {'native': {'pickup': True, 'lock': True, 'unrelated_option': 123}}
+        class Host:
+            def read_file(self, name, default=None):
+                return copy.deepcopy(DEFAULT_RULES if name == 'loot-filter-rules.json' else
+                                     saved if name == 'loot-overlay-settings.json' else default)
+            def write_file(self, name, value): pass
+        host = Host()
+        host.root = root
+        try:
+            dialog = Settings(host, show=False)
+            n = dialog.native_settings
+            self.assertFalse(n.snow.get() or n.whirlwind.get() or n.fast_return.get())
+            n.snow.set(True); n.snow_choice.set('灰绿')
+            n.whirlwind.set(True); n.whirlwind_choice.set('隐藏'); n.fast_return.set(True)
+            values = n.values()['native']
+            self.assertEqual((values['snow_theme'], values['whirlwind_mode'], values['fast_return']), ('sage', 'hidden', True))
+            self.assertEqual(values['unrelated_option'], 123)
+            self.assertTrue(values['pickup'] and values['lock'])
+            dialog.cancel()
+        finally:
+            root.destroy()
+
     def test_closed_settings_release_tk_variables_on_ui_thread(self):
         root = tk.Tk()
         root.withdraw()
@@ -85,7 +110,7 @@ class SettingsTests(unittest.TestCase):
             self.assertEqual(len(dialog.enabled_vars), 74)
             self.assertEqual(sum(x.get() for x in dialog.enabled_vars), 11)
             self.assertEqual([x['label'] for x in dialog.types], ['武器', '衣服', '头盔', '项链', '手镯', '戒指', '腰带', '靴子', '法宝', '其他'])
-            self.assertEqual(len(dialog.pair_vars), 60)
+            self.assertEqual(len(dialog.pair_vars), 70)
             self.assertEqual(sum(x.get() for x in dialog.pair_vars.values()), 4)
             dialog.choose_pairs('t6')
             self.assertEqual(

@@ -1,4 +1,5 @@
 import time
+from dataclasses import replace
 import unittest
 from unittest.mock import patch
 
@@ -11,6 +12,17 @@ SCHEMA = {'pid': 123, 'types': {'简化物品属性': [
 
 
 class NativeClientTests(unittest.TestCase):
+    def test_comfort_options_default_off_and_disable_with_stale_inventory(self):
+        snap = self.snapshot()
+        req = self.send(snap)
+        self.assertEqual((req['snow_theme'], req['whirlwind_mode'], req['fast_return']), ('off', 'off', False))
+        snap.settings['native'].update(snow_theme='sage', whirlwind_mode='hidden', fast_return=True)
+        req = self.send(snap)
+        self.assertEqual((req['snow_theme'], req['whirlwind_mode'], req['fast_return']), ('sage', 'hidden', True))
+        snap = replace(snap, live=False)
+        req = self.send(snap)
+        self.assertEqual((req['snow_theme'], req['whirlwind_mode'], req['fast_return']), ('off', 'off', False))
+
     def setUp(self):
         self.client = NativeClient()
         self.patches = [patch('loot_overlay.find_game', return_value=1),

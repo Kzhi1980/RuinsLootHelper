@@ -115,7 +115,7 @@ class FilterTests(unittest.TestCase):
     def test_catalog_includes_current_official_t6_equipment(self):
         m = self.module()
         catalog = m.catalog_data()
-        self.assertEqual(catalog['source_build'], '25347683')
+        self.assertEqual(catalog['source_build'], '25669660')
         t6 = [row for row in catalog['equipment'] if row['tier_raw'] == 10]
         self.assertEqual(len(t6), 42)
         xiaoyin = next(row for row in t6 if row['name'] == '霄引')

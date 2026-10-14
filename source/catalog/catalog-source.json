@@ -1,5 +1,5 @@
 {
-  "game_build": "25347683",
+  "game_build": "25669660",
   "steam_app_id": 4364910,
   "assets": [
     {
@@ -11,20 +11,20 @@
     {
       "path": "RuinsOfDawn/Content/UI/套装/套装名字.uasset",
       "container": "RuinsOfDawn-Windows_0_P.utoc",
-      "size": 8190,
-      "sha256": "98f17614bac6b7cf3ea4b642a4e5e9b3e4b6ce3b1c837b6a5769bbd45d71d9df"
+      "size": 8979,
+      "sha256": "e19ae369d21d1f067f05136363ada74cb0a90a9a33fa5295dcb03ab6175e8384"
     },
     {
       "path": "RuinsOfDawn/Content/UI/套装/套装名字中文.uasset",
       "container": "RuinsOfDawn-Windows_0_P.utoc",
-      "size": 6544,
-      "sha256": "3cc274e257490b8b4bac4f922e68ffb94e8cab36a819593a2a92f1e74d96d928"
+      "size": 7159,
+      "sha256": "8eade6b8c862a2fba6f1e40307a54bc66c84f41dcc290d1164ea215e41e07819"
     },
     {
       "path": "RuinsOfDawn/Content/UI/套装/套装属性数据表.uasset",
       "container": "RuinsOfDawn-Windows_0_P.utoc",
-      "size": 16416,
-      "sha256": "c67e571a06d1bdb654661888724e5370b02dcf1304c37a39c3ae61211fb8be58"
+      "size": 17474,
+      "sha256": "704961514059cd35a729025179357383d8c025dcab5a4fa1f5cb432df0306779"
     },
     {
       "path": "RuinsOfDawn/Content/UI/怪物图鉴/图鉴奖励枚举.uasset",
@@ -85,6 +85,12 @@
       "container": "RuinsOfDawn-Windows.utoc",
       "size": 13001,
       "sha256": "a6c52a8198ddadcefe94a945b4e06e32ebf1ff4996f727adb16243c3174d1d13"
+    },
+    {
+      "path": "RuinsOfDawn/Content/公用/NewFunctionLibrary.uasset",
+      "container": "RuinsOfDawn-Windows_0_P.utoc",
+      "size": 1065875,
+      "sha256": "ddb826692d3cd0a68b667a1f057597db64bf918ad58663dbd7d2d18a9983ec31"
     },
     {
       "path": "RuinsOfDawn/Content/公用/所有非技能属性枚举.uasset",
@@ -167,10 +173,141 @@
     {
       "path": "RuinsOfDawn/Content/物品数据/装备表传奇和特殊.uasset",
       "container": "RuinsOfDawn-Windows_0_P.utoc",
-      "size": 37407,
-      "sha256": "dc8e9dc96e4cbaa07185380b548aca53a676d19bb187c771fd5a11e51804478d"
+      "size": 40839,
+      "sha256": "b920e75c19caf438a6abab40655150b975034a5cd58ab821e68add1ea69f381f"
     }
   ],
-  "equipment_rows": 549,
-  "t6_rows": 42
+  "equipment_rows": 559,
+  "t6_rows": 42,
+  "t7_rows": 10,
+  "drop_filter": {
+    "function": "/Game/公用/NewFunctionLibrary.NewFunctionLibrary_C:屏蔽条件判断",
+    "parameter_count": 24,
+    "item_parameter": 1,
+    "player_parameter": 2,
+    "output_parameter": 24,
+    "output_name": "是否屏蔽",
+    "parameters": [
+      {
+        "name": "属性",
+        "type": "StructProperty",
+        "flags": 148
+      },
+      {
+        "name": "玩家",
+        "type": "ObjectProperty",
+        "flags": 148
+      },
+      {
+        "name": "A1",
+        "type": "ArrayProperty",
+        "flags": 134218132
+      },
+      {
+        "name": "A2",
+        "type": "ArrayProperty",
+        "flags": 134218132
+      },
+      {
+        "name": "A3",
+        "type": "ArrayProperty",
+        "flags": 134218132
+      },
+      {
+        "name": "A4",
+        "type": "ArrayProperty",
+        "flags": 134218132
+      },
+      {
+        "name": "T1",
+        "type": "ArrayProperty",
+        "flags": 134218132
+      },
+      {
+        "name": "T2",
+        "type": "ArrayProperty",
+        "flags": 134218132
+      },
+      {
+        "name": "T3",
+        "type": "ArrayProperty",
+        "flags": 134218132
+      },
+      {
+        "name": "T4",
+        "type": "ArrayProperty",
+        "flags": 134218132
+      },
+      {
+        "name": "T5",
+        "type": "ArrayProperty",
+        "flags": 134218132
+      },
+      {
+        "name": "TT1",
+        "type": "ArrayProperty",
+        "flags": 134218132
+      },
+      {
+        "name": "TT2",
+        "type": "ArrayProperty",
+        "flags": 134218132
+      },
+      {
+        "name": "TT3",
+        "type": "ArrayProperty",
+        "flags": 134218132
+      },
+      {
+        "name": "TT4",
+        "type": "ArrayProperty",
+        "flags": 134218132
+      },
+      {
+        "name": "TT5",
+        "type": "ArrayProperty",
+        "flags": 134218132
+      },
+      {
+        "name": "CQ",
+        "type": "ArrayProperty",
+        "flags": 134218132
+      },
+      {
+        "name": "JN",
+        "type": "ArrayProperty",
+        "flags": 134218132
+      },
+      {
+        "name": "CL",
+        "type": "ArrayProperty",
+        "flags": 134218132
+      },
+      {
+        "name": "YS",
+        "type": "ArrayProperty",
+        "flags": 134218132
+      },
+      {
+        "name": "T6",
+        "type": "ArrayProperty",
+        "flags": 134218132
+      },
+      {
+        "name": "TT6",
+        "type": "ArrayProperty",
+        "flags": 134218132
+      },
+      {
+        "name": "__WorldContext",
+        "type": "ObjectProperty",
+        "flags": 148
+      },
+      {
+        "name": "是否屏蔽",
+        "type": "BoolProperty",
+        "flags": 384
+      }
+    ]
+  }
 }

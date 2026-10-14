@@ -3,6 +3,8 @@ from pathlib import Path
 import queue
 import threading
 import tkinter as tk
+from tkinter import ttk
+from comfort_options import SNOW_THEMES, WHIRLWIND_MODES, comfort_options
 from native_client import fresh_status, PROTOCOL
 from overlay_scroll import AutoScrollbar
 from pickup_library import pickup_options, RANGE_OPTIONS, INTERVAL_OPTIONS, BATCH_OPTIONS
@@ -46,7 +48,8 @@ class NativeSettings:
         self.canvas.pack(side='left', fill='both', expand=True)
         self.body = tk.Frame(self.canvas, bg=BG)
         body_id = self.canvas.create_window((0, 0), window=self.body, anchor='nw')
-        self.body.bind('<Configure>', lambda _: self.canvas.configure(scrollregion=self.canvas.bbox('all')))
+        self.layout_job = None
+        self.body.bind('<Configure>', self.schedule_layout)
         self.canvas.bind('<Configure>', lambda e: self.resize(e, body_id))
         settings = dialog.settings.get('native', {})
         options = pickup_options(settings)
@@ -58,6 +61,12 @@ class NativeSettings:
         self.auto_recycle = tk.BooleanVar(value=bool(settings.get('auto_recycle', False) and self.lock.get()))
         self.auto_rift = tk.BooleanVar(value=bool(settings.get('auto_rift', False)))
         self.bagua = tk.BooleanVar(value=bool(settings.get('bagua_marker', False)))
+        comfort = comfort_options(settings)
+        self.snow = tk.BooleanVar(value=comfort['snow_theme'] != 'off')
+        self.snow_choice = tk.StringVar(value=next((k for k, v in SNOW_THEMES.items() if v == comfort['snow_theme']), '米灰'))
+        self.whirlwind = tk.BooleanVar(value=comfort['whirlwind_mode'] != 'off')
+        self.whirlwind_choice = tk.StringVar(value=next((k for k, v in WHIRLWIND_MODES.items() if v == comfort['whirlwind_mode']), '减弱'))
+        self.fast_return = tk.BooleanVar(value=comfort['fast_return'])
         self.drop_enabled = tk.BooleanVar(value=dialog.settings.get('drop_filter_enabled', True))
         self.borderless = tk.BooleanVar(value=settings.get('borderless', False))
         self.sections = {key: tk.BooleanVar(value=settings.get('lock_sections', {}).get(key, key == 'numeric'))
@@ -77,6 +86,7 @@ class NativeSettings:
         self.install_button = dialog.button(setup, '安装 / 更新组件', self.install)
         self.install_button.pack(side='right', padx=6, pady=6)
         self.card_grid = tk.Frame(self.body, bg=BG)
+        self.card_grid.bind('<Configure>', self.schedule_layout)
         self.card_grid.pack(fill='x')
         self.card_grid.columnconfigure(0, weight=1, uniform='cards')
         self.card_grid.columnconfigure(1, weight=1, uniform='cards')
@@ -133,6 +143,17 @@ class NativeSettings:
         self.bagua_status = self.text(self.bagua_card, '已关闭', GREEN)
         detail = self.details(self.bagua_card)
         self.text(detail, '进入八卦触发区域后显示红点，离开后隐藏。只显示入口位置，不改变传送规则。地图放大时隐藏；加入他人房间时可能读不到入口。')
+        self.snow_card, self.snow_check = self.card('雪地柔和配色', '调整雪地地面的颜色，关闭后恢复原色。', self.snow)
+        self.snow_status = self.text(self.snow_card, '已关闭', GREEN)
+        ttk.Combobox(self.snow_card, textvariable=self.snow_choice, values=list(SNOW_THEMES),
+                     state='readonly', width=12).pack(anchor='w', padx=14, pady=(0,14))
+        self.whirlwind_card, self.whirlwind_check = self.card('旋风斩特效', '减弱或隐藏旋风斩光效，保留技能伤害。', self.whirlwind)
+        self.whirlwind_status = self.text(self.whirlwind_card, '已关闭', GREEN)
+        ttk.Combobox(self.whirlwind_card, textvariable=self.whirlwind_choice, values=list(WHIRLWIND_MODES),
+                     state='readonly', width=12).pack(anchor='w', padx=14, pady=(0,14))
+        self.return_card, self.return_check = self.card('快速回城', '回城准备约 1 秒，仅单人或自己开房可用。', self.fast_return)
+        self.return_status = self.text(self.return_card, '已关闭', GREEN)
+        self.text(self.return_card, '按游戏回城键触发；移动或施法仍会打断。')
         self.footer = tk.Frame(self.body, bg=BG)
         self.footer.pack(fill='x', pady=(12, 4))
         self.borderless_check = dialog.check(self.footer, '全屏兼容：切换为无边框全屏', self.borderless)
@@ -152,6 +173,17 @@ class NativeSettings:
         self.text(frame, description)
         self.cards.append(frame)
         return frame, control
+
+    def schedule_layout(self, _=None):
+        if self.layout_job:
+            self.canvas.after_cancel(self.layout_job)
+        self.layout_job = self.canvas.after_idle(self.sync_scroll_region)
+
+    def sync_scroll_region(self):
+        self.layout_job = None
+        # A scrolled-off canvas window may not receive Configure when the cards
+        # shrink from one column to two. Use requested size after grid settles.
+        self.canvas.configure(scrollregion=(0, 0, self.body.winfo_reqwidth(), self.body.winfo_reqheight()))
 
     def text(self, parent, text, color=MUTED):
         widget = label(parent, text, color=color, wraplength=300, justify='left')
@@ -173,7 +205,7 @@ class NativeSettings:
 
     def resize(self, event, body_id):
         self.canvas.itemconfigure(body_id, width=event.width)
-        if len(self.cards) < 5:
+        if len(self.cards) < 8:
             return
         mode = event.width >= 650
         if mode != self.mode:
@@ -182,10 +214,12 @@ class NativeSettings:
                 card.grid_forget()
             if mode:
                 for card, row, col, span in ((self.pickup_card,0,0,1),(self.drop_card,1,0,1),
-                         (self.lock_card,0,1,2),(self.rift_card,2,0,1),(self.bagua_card,2,1,1)):
+                         (self.lock_card,0,1,2),(self.rift_card,2,0,1),(self.bagua_card,2,1,1),
+                         (self.snow_card,3,0,1),(self.whirlwind_card,3,1,1),(self.return_card,4,0,1)):
                     card.grid(row=row, column=col, rowspan=span, sticky='nsew', padx=(0,12) if col==0 else 0, pady=(0,12))
             else:
-                for row, card in enumerate((self.pickup_card,self.drop_card,self.lock_card,self.rift_card,self.bagua_card)):
+                for row, card in enumerate((self.pickup_card,self.drop_card,self.lock_card,self.rift_card,self.bagua_card,
+                                           self.snow_card,self.whirlwind_card,self.return_card)):
                     card.grid(row=row, column=0, columnspan=2, sticky='nsew', pady=(0,12))
         width = max(230, (event.width-12)//2-28 if mode else event.width-28)
         for widget in self.wrap_labels:
@@ -277,6 +311,18 @@ class NativeSettings:
             '更新组件后可用' if not state.get('bagua_supported') else
             {'shown':'正确入口已标记','waiting':'等待进入八卦区域','inactive':'切出游戏，已暂停',
              'error':'入口暂不可用','stopped':'入口提示已暂停，请重新开关'}.get(bagua.get('state'), '等待进入八卦区域'))
+        comfort = state.get('comfort', {}) or {}
+        for key, enabled, widget in (('snow', self.snow.get(), self.snow_status),
+                                    ('whirlwind', self.whirlwind.get(), self.whirlwind_status),
+                                    ('fast_return', self.fast_return.get(), self.return_status)):
+            code = (comfort.get(key, {}) or {}).get('state')
+            message = {'applied':'已应用，可关闭恢复原样','applying':'正在应用',
+                       'waiting':'等待对应场景或技能加载','ready':'已开启，等待按回城键',
+                       'shortened':'已缩短本次回城准备','host_only':'仅单人或自己开房可用',
+                       'inactive':'切出游戏，暂缓加速','unsupported':'当前游戏版本暂不支持',
+                       'error':'暂未应用，请关闭后重试'}.get(code, '保存设置后生效')
+            widget.configure(text='已关闭' if not enabled else '等待游戏组件连接' if not connected else
+                             '更新组件并重启游戏后可用' if not state.get('comfort_supported') else message)
         library = self.dialog.pickup_library.model
         selected = len(library.equipment_values()) + len(library.codex_values())
         self.codex_summary.configure(text='已关闭，清单已保留' if not self.drop_enabled.get() else
@@ -318,6 +364,9 @@ class NativeSettings:
     def cleanup(self, event):
         if event.widget != self.tab:
             return
+        if self.layout_job:
+            self.canvas.after_cancel(self.layout_job)
+            self.layout_job = None
         if self.lock_trace:
             self.lock.trace_remove('write', self.lock_trace)
             self.lock_trace = None
@@ -332,4 +381,7 @@ class NativeSettings:
                       pickup_range_multiplier=self.range_choice.get(), pickup_interval=self.interval_choice.get(),
                       pickup_batch=self.batch_choice.get(), skip_codex=bool(self.dialog.pickup_library.model.codex_values()),
                       borderless=self.borderless.get(), lock_sections={key: var.get() for key,var in self.sections.items()})
+        values.update(snow_theme=SNOW_THEMES.get(self.snow_choice.get(), 'off') if self.snow.get() else 'off',
+                      whirlwind_mode=WHIRLWIND_MODES.get(self.whirlwind_choice.get(), 'off') if self.whirlwind.get() else 'off',
+                      fast_return=self.fast_return.get())
         return {'native': values, 'drop_filter_enabled': self.drop_enabled.get()}

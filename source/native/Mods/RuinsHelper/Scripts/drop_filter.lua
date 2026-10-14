@@ -1,6 +1,7 @@
 -- SPDX-License-Identifier: MIT
 -- Extend the game's existing drop decision; never destroy actors or inventory.
--- Verified on 1.15: params 1=格子属性, 2=玩家, 22=是否屏蔽 (Bool out).
+-- Verified signatures: 1.15 has 22 params; build 25669660 has 24 (T6/TT6 added).
+-- Both have 1=格子属性, 2=玩家, and the final param=是否屏蔽 (Bool out).
 -- Pinned UE4SS 2bfa839f invokes Blueprint hooks after the script and exposes
 -- out-parameters through RemoteUnrealParam:set (LuaMod.cpp:6284-6376).
 local M = {}
@@ -17,12 +18,15 @@ function M.new()
         local req = self.request
         if self.error or not req or req.protocol ~= 4 or not req.block_drops or
             type(req.expires) ~= "number" or os.time() > req.expires then return end
-        if select("#", ...) ~= 22 then error("Drop filter signature changed (expected 22 parameters)") end
+        local count = select("#", ...)
+        if count ~= 22 and count ~= 24 then
+            error(string.format("Drop filter signature changed (expected 22 or 24 parameters, got %d)", count))
+        end
         local args = {...}
         local player = args[2]:get()
         if not valid(player) or player:GetAddress() ~= req.player_address or not player:IsLocallyControlled() then return end
         self.calls = self.calls + 1
-        local output = args[22]
+        local output = args[count]
         local original = output:get()
         if type(original) ~= "boolean" then error("Drop filter output is not boolean") end
         if original then return end -- Add exclusions without undoing the official ones.

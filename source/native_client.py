@@ -6,6 +6,7 @@ from live_items import clean
 from lock_library import evaluate_protection
 from native_policy import AutoLockNotices, LockPolicy, identity
 from pickup_library import codex_names, codex_selection, pickup_options
+from comfort_options import comfort_options
 
 PROTOCOL = 4
 
@@ -125,6 +126,7 @@ class NativeClient:
             'rift_run_id': self.rift_run_id,
             'rift_permission': self.rift_permission,
             'recycle': None}
+        request.update(comfort_options(config, bool(usable)))
         self.policy.observe(snapshot.current.get('items', []) if usable else [], now)
         if snapshot.protected_slots is not None and snapshot.protection_errors is not None:
             indices, rule_errors = set(snapshot.protected_slots), snapshot.protection_errors

@@ -7,9 +7,11 @@ function M.new(adapter)
         if type(req) ~= "table" or req.protocol ~= 4 or type(req.expires) ~= "number" or utc > req.expires then
             if self.adapter.stop_grid then self.adapter:stop_grid() end
             if self.adapter.stop_bagua then self.adapter:stop_bagua() end
+            if self.adapter.stop_comfort then self.adapter:stop_comfort() end
             return { ready = false, state = "helper_offline" }
         end
         if self.session ~= req.session then
+            if self.adapter.stop_comfort then self.adapter:stop_comfort() end
             self.session = req.session
             self.attempts, self.seen, self.seen_order, self.acks = {}, {}, {}, {}
             self.next_scan = 0
@@ -19,6 +21,7 @@ function M.new(adapter)
         if not state.valid or state.player_address ~= req.player_address then
             if self.adapter.stop_grid then self.adapter:stop_grid() end
             if self.adapter.stop_bagua then self.adapter:stop_bagua() end
+            if self.adapter.stop_comfort then self.adapter:stop_comfort() end
             return { ready = false, state = "waiting_for_current_player" }
         end
         -- Use the game's real clock rather than the last mailbox timestamp,
@@ -26,15 +29,23 @@ function M.new(adapter)
         if self.adapter.clock then now = self.adapter:clock() end
         if type(now) ~= "number" or now ~= now or now == math.huge or now < 0 then
             if self.adapter.stop_bagua then self.adapter:stop_bagua() end
+            if self.adapter.stop_comfort then self.adapter:stop_comfort() end
             return {ready=false,state="invalid_clock"}
         end
         if self.last_clock and now < self.last_clock then
+            if self.adapter.stop_comfort then self.adapter:stop_comfort() end
             self.next_scan=0;self.attempts={};self.last_recycle=-100
         end
         self.last_clock=now
         local result = { ready = true, state = "ready", player_address = state.player_address,
             backpack_open = state.backpack_open, free_slots = state.free_slots, acks = self.acks,
             auto_recycle_supported = type(self.adapter.recycle) == "function" }
+        if self.adapter.comfort_step then
+            result.comfort_supported=true
+            local ok,comfort=pcall(function() return self.adapter:comfort_step(req,now) end)
+            result.comfort=ok and comfort or {state='error',error=tostring(comfort)}
+            if not ok and self.adapter.stop_comfort then pcall(function() self.adapter:stop_comfort() end) end
+        end
         if self.adapter.bagua_step then
             result.bagua_supported = true
             local ok, marker = pcall(function() return self.adapter:bagua_step(req,now) end)

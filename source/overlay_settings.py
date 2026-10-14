@@ -285,20 +285,34 @@ class Settings:
             if event.widget == self.category:
                 return
             self.canvas.yview_scroll(-int(event.delta / 120), 'units')
+        elif self.tabs.select() == str(self.legend_tab):
+            return self.legend_scrollbar.wheel(event)
         elif self.tabs.select() == str(self.lower_tab):
             self.lower_canvas.yview_scroll(-int(event.delta / 120), 'units')
 
     def legendary_settings(self):
+        self.legend_canvas = tk.Canvas(self.legend_tab, bg=BG, borderwidth=0, highlightthickness=0)
+        horizontal = ttk.Scrollbar(self.legend_tab, orient='horizontal', command=self.legend_canvas.xview)
+        horizontal.pack(side='bottom', fill='x')
+        self.legend_canvas.configure(xscrollcommand=horizontal.set)
+        self.legend_scrollbar = AutoScrollbar(self.legend_tab, self.legend_canvas)
+        self.legend_canvas.pack(side='left', fill='both', expand=True)
+        body = tk.Frame(self.legend_canvas, bg=BG)
+        body_id = self.legend_canvas.create_window((0, 0), window=body, anchor='nw')
+        body.bind('<Configure>', lambda _: self.legend_canvas.configure(scrollregion=self.legend_canvas.bbox('all')))
+        self.legend_canvas.bind('<Configure>', lambda event: self.legend_canvas.itemconfigure(
+            body_id, width=max(event.width, body.winfo_reqwidth())))
         self.legend_enabled = tk.BooleanVar(value=self.settings.get('legendary_enabled', True))
-        self.check(self.legend_tab, '提示装备上方自带的传说技能', self.legend_enabled).pack(anchor='w', pady=(14, 6))
-        self.label(self.legend_tab, '按“T 级 × 部位”组合勾选，下面可自行添加的技能不计入。', anchor='w').pack(fill='x', padx=6)
-        actions = tk.Frame(self.legend_tab, bg=BG)
+        self.check(body, '提示装备上方自带的传说技能', self.legend_enabled).pack(anchor='w', pady=(14, 6))
+        self.label(body, '按“T 级 × 部位”组合勾选，下面可自行添加的技能不计入。', anchor='w').pack(fill='x', padx=6)
+        actions = tk.Frame(body, bg=BG)
         actions.pack(fill='x', padx=5, pady=12)
         self.button(actions, '只选 T5', lambda: self.choose_pairs('t5')).pack(side='left')
         self.button(actions, '只选 T6', lambda: self.choose_pairs('t6')).pack(side='left', padx=7)
+        self.button(actions, '只选 T7', lambda: self.choose_pairs('t7')).pack(side='left', padx=(0, 7))
         self.button(actions, '全部', lambda: self.choose_pairs('all')).pack(side='left', padx=(0, 7))
         self.button(actions, '清空', lambda: self.choose_pairs('none')).pack(side='left')
-        matrix = tk.Frame(self.legend_tab, bg=BG)
+        matrix = tk.Frame(body, bg=BG)
         matrix.pack(fill='x', padx=6)
         self.types = [{'id': kind, 'label': label} for kind, label in LEGENDARY_TYPES.items()]
         selected = self.settings.get('legendary_pairs')
@@ -306,26 +320,29 @@ class Settings:
         for column, kind in enumerate(self.types, 1):
             matrix.columnconfigure(column, weight=1)
             self.label(matrix, kind['label'], font=('Microsoft YaHei UI', 10)).grid(row=0, column=column, padx=1, pady=5)
-        for row, tier in enumerate(range(5, 11), 1):
+        self.legend_tiers = sorted({item['tier_raw'] for item in self.catalog['equipment']
+                                    if item.get('tier', '').startswith('T')})
+        for row, tier in enumerate(self.legend_tiers, 1):
             self.label(matrix, f'T{tier - 4}').grid(row=row, column=0, padx=(0, 12), pady=7)
             for column, kind in enumerate(self.types, 1):
                 key = f"{tier}:{kind['id']}"
                 var = tk.BooleanVar(value=(tier == 9 and kind['id'] in DEFAULT_LEGENDARY_TYPES if selected is None else key in selected))
                 self.pair_vars[key] = var
                 self.check(matrix, '', var, self.update_pair_count).grid(row=row, column=column, padx=3)
-        self.pair_count = self.label(self.legend_tab, '', anchor='w')
+        self.pair_count = self.label(body, '', anchor='w')
         self.pair_count.pack(fill='x', padx=6, pady=(12, 5))
-        self.label(self.legend_tab, '显示：第 2 行第 3 格 · T4 武器\n冲刺无冷却', justify='left', anchor='w').pack(fill='x', padx=6, pady=8)
+        self.label(body, '显示：第 2 行第 3 格 · T4 武器\n冲刺无冷却', justify='left', anchor='w').pack(fill='x', padx=6, pady=8)
         self.update_pair_count()
 
     def choose_pairs(self, which):
+        tier = int(which[1:]) + 4 if which.startswith('t') and which[1:].isdigit() else None
         for key, var in self.pair_vars.items():
-            var.set(which == 'all' or which == 't5' and key.startswith('9:')
-                    or which == 't6' and key.startswith('10:'))
+            var.set(which == 'all' or key.split(':', 1)[0] == str(tier))
         self.update_pair_count()
 
     def update_pair_count(self):
-        self.pair_count.configure(text=f'已选 {sum(v.get() for v in self.pair_vars.values())} 种组合 · 可独立选择 T1–T6 × 部位')
+        tiers = f'T{self.legend_tiers[0] - 4}–T{self.legend_tiers[-1] - 4}'
+        self.pair_count.configure(text=f'已选 {sum(v.get() for v in self.pair_vars.values())} 种组合 · 可独立选择 {tiers} × 部位')
 
     def lower_settings(self):
         self.lower_enabled = tk.BooleanVar(value=self.settings.get('lower_enabled', True))

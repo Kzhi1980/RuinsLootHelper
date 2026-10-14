@@ -27,12 +27,13 @@ class NativeDropFilterTests(unittest.TestCase):
             function wrap(value)
                 return {get=function() return value end,set=function(_,v) value=v end}
             end
-            function apply(item,owner,blocked)
+            function apply(item,owner,blocked,count)
+                count=count or 22
                 local args={wrap(item),wrap(owner or player)}
-                for i=3,21 do args[i]=wrap({}) end
-                args[22]=wrap(blocked or false)
+                for i=3,count-1 do args[i]=wrap({}) end
+                args[count]=wrap(blocked or false)
                 hook(wrap({}),table.unpack(args))
-                return args[22]:get()
+                return args[count]:get()
             end
         ''')
 
@@ -73,6 +74,29 @@ class NativeDropFilterTests(unittest.TestCase):
             filter:update(request)
             assert(apply({kind=3,name="魔化主帅"}))
             assert(registered==1)
+        ''')
+
+    def test_build_25669660_uses_parameter_24_and_preserves_official_exclusions(self):
+        self.lua.execute('''
+            request.excluded_equipment={["11:6:唤雷指环"]=true}
+            filter:update(request)
+            assert(apply({kind=3,name="人形地魔"},player,false,24))
+            assert(apply({kind=1,name="唤雷指环",gear={tier=11,part=6}},player,false,24))
+            assert(not apply({kind=1,name="风刺指环",gear={tier=11,part=6}},player,false,24))
+            assert(apply({kind=3,name="药水"},player,true,24))
+            assert(filter:update(request).state=="connected")
+            assert(filter:update(request).blocked==2)
+        ''')
+
+    def test_unknown_signatures_do_not_write_and_report_actual_count(self):
+        self.lua.execute('''
+            for _,count in ipairs({21,23,25}) do
+                filter=Filter.new();filter:update(request)
+                assert(not apply({kind=3,name="人形地魔"},player,false,count))
+                local state=filter:update(request)
+                assert(state.state=="error")
+                assert(state.error:find(tostring(count),1,true),state.error)
+            end
         ''')
 
     def test_schema_error_or_signature_mismatch_leaves_original_output_untouched(self):

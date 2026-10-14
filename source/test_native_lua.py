@@ -4,6 +4,19 @@ from lupa import LuaRuntime
 
 
 class NativeLuaTests(unittest.TestCase):
+    def test_comfort_is_independent_of_pickup_and_restores_on_expiry(self):
+        self.lua.execute('''
+            updates,stops=0,0
+            function adapter:comfort_step(req,now) updates=updates+1;return {snow={state='applied'}} end
+            function adapter:stop_comfort() stops=stops+1 end
+            request.pickup=false;request.active=false
+            local result=engine:step(request,1,1)
+            assert(result.comfort_supported and result.comfort.snow.state=='applied' and updates==1)
+            local before=stops
+            request.expires=0;engine:step(request,2,2)
+            assert(stops==before+1 and updates==1)
+        ''')
+
     def setUp(self):
         self.lua = LuaRuntime(unpack_returned_tuples=True)
         core = Path('native/Mods/RuinsHelper/Scripts/core.lua').read_text(encoding='utf8')

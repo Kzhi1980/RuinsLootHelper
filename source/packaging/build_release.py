@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from native_support import ARCHIVE_NAME, SHA256 as RUNTIME_SHA256
 
-VERSION = '0.3.10'
+VERSION = '0.3.11'
 STAGING = ROOT / ('release-staging-' + VERSION)
 APP = STAGING / '破晓装备助手'
 DESTINATION = ROOT / 'releases' / VERSION
@@ -48,8 +48,8 @@ def main():
     assert list((APP / '_internal/cv2').glob('*.pyd'))
     assert (APP / '_internal/assets/backpack-lock.png').is_file()
     assert {'app_update', 'update_panel', 'ui_theme', 'ui_pages', 'ui_switch', 'author_page'} <= set(archive.toc)
-    assert {'lock_library', 'overlay_lock_library'} <= set(archive.toc)
-    for script in ('rifts.lua', 'bagua.lua', 'bagua_core.lua', 'bagua_game.lua'):
+    assert {'lock_library', 'overlay_lock_library', 'comfort_options'} <= set(archive.toc)
+    for script in ('rifts.lua', 'bagua.lua', 'bagua_core.lua', 'bagua_game.lua', 'comfort.lua'):
         assert (APP / '_internal/native/Mods/RuinsHelper/Scripts' / script).is_file()
     assert (APP / '_internal/project-links.json').is_file()
     packaged_runtime = APP / '_internal/runtime' / ARCHIVE_NAME
@@ -81,7 +81,7 @@ def main():
         'native_runtime_bytes': packaged_runtime.stat().st_size, 'native_runtime_sha256': RUNTIME_SHA256,
         'native_features_enabled_by_default': False, 'native_game_verified': False,
         'features': ['filters', 'backpack_markers', 'native_pickup', 'auto_lock', 'quality_equipment_lock',
-                     'auto_recycle', 'auto_rift', 'bagua_marker'],
+                     'auto_recycle', 'auto_rift', 'bagua_marker', 'snow_theme', 'whirlwind_visuals', 'host_fast_return'],
     }
     (DESTINATION / 'build-manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding='utf8')
     print(json.dumps(manifest, ensure_ascii=False, indent=2))

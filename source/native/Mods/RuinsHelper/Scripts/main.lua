@@ -4,14 +4,13 @@ local json = require("json")
 local adapter = require("game")
 local engine = require("core").new(adapter)
 local folder = (os.getenv("LOCALAPPDATA") or "") .. "/RuinsLootHelper/"
-local pending, outgoing = false, nil
 local function read_request()
     local file = io.open(folder.."native-request.json", "rb")
     if not file then return nil end
     local text = file:read(1048576)
     file:close()
     local ok, request = pcall(json.decode, text)
-    return ok and request or nil
+    return ok and type(request)=="table" and request or nil
 end
 local function publish(value)
     value.protocol, value.utc = 4, os.time()
@@ -24,23 +23,29 @@ local function publish(value)
     os.remove(folder.."native-status.json")
     os.rename(temp, folder.."native-status.json")
 end
-publish({ready=false, state="loaded_waiting_for_helper"})
-LoopAsync(50, function()
-    if outgoing then publish(outgoing); outgoing = nil end
-    if pending then return false end
-    local request = read_request()
-    -- A missing mailbox must also hide our marker after the helper closes.
-    request = request or {}
-    pending = true
-    ExecuteInGameThread(function()
-        local ok, result = pcall(function()
-            return engine:step(request, request.monotonic or 0, os.time())
-        end)
-        if not ok and adapter.stop_bagua then pcall(function() adapter:stop_bagua() end) end
-        outgoing = ok and result or {ready=false, state="adapter_error", error=tostring(result)}
-        outgoing.session = request.session
-        outgoing.game_pid = request.game_pid
-        pending = false
+pcall(publish, {ready=false, state="loaded_waiting_for_helper"})
+-- UE4SS async Lua callbacks share the VM with game-thread callbacks. Keep the
+-- mailbox, Lua state and UObject work on one thread, with one outstanding tick.
+if type(ExecuteInGameThreadWithDelay)~="function" then
+    pcall(publish, {ready=false, state="adapter_error",
+        error="Game-thread timer unavailable; update the bundled game component."})
+    return
+end
+local function tick()
+    local request = {}
+    local ok, result = pcall(function()
+        -- A missing or malformed mailbox must still expire native features.
+        request = read_request() or {}
+        return engine:step(request, request.monotonic or 0, os.time())
     end)
-    return false
-end)
+    if not ok then
+        if adapter.stop_bagua then pcall(function() adapter:stop_bagua() end) end
+        if adapter.stop_comfort then pcall(function() adapter:stop_comfort() end) end
+        result = {ready=false, state="adapter_error", error=tostring(result)}
+    end
+    result.session, result.game_pid = request.session, request.game_pid
+    -- A transient status-file failure must not stop future cleanup/ticks.
+    pcall(publish, result)
+    ExecuteInGameThreadWithDelay(50, tick)
+end
+ExecuteInGameThreadWithDelay(50, tick)
