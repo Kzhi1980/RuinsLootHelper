@@ -13,6 +13,7 @@ class ComfortTests(unittest.TestCase):
             Path('native/Mods/RuinsHelper/Scripts/comfort.lua').read_text(encoding='utf-8'))
         self.lua.execute('''
             next_id=100; scans=0; creations=0; hooks={}; lists={}; invalid_material_calls=0
+            function_hooks={}; hook_registrations=0
             function object(path,props)
                 next_id=next_id+1;local id=next_id;props=props or {}
                 props.GetFullName=function() return path end
@@ -33,6 +34,10 @@ class ComfortTests(unittest.TestCase):
             player.IsLocallyControlled=function() return player.local_player end
             function FindAllOf(name) scans=scans+1;return lists[name] or {} end
             function NotifyOnNewObject(name,callback) hooks[name]=callback end
+            function RegisterHook(name,callback)
+                hook_registrations=hook_registrations+1;function_hooks[name]=callback
+                return 1001,1002
+            end
             material=object('MaterialInstanceConstant /Game/land/Materials/landscape/MI_landscape_Inst.MI_landscape_Inst')
             original={R=1,G=.9,B=.8,A=1}
             material.K2_GetVectorParameterValue=function(_,name)
@@ -71,16 +76,39 @@ class ComfortTests(unittest.TestCase):
                 return mid
             end
             function StaticFindObject(path)
+                if path=='/Script/Niagara.NiagaraFunctionLibrary:SpawnSystemAtLocation' then
+                    return object('Function '..path)
+                end
                 assert(path=='/Script/Engine.Default__KismetMaterialLibrary');return lib
             end
             fx=object('NiagaraSystem shared.Bear')
-            notify=object('AnimNotify_PlayNiagaraEffect /Game/Characters/Mannequin_UE4/Animations/攻击/0旋风斩/旋风斩3.旋风斩3.AnimNotify_PlayNiagaraEffect_0',
+            notify=object('AnimNotify_PlayNiagaraEffect /Game/Characters/Mannequin_UE4/Animations/攻击/0旋风斩/旋风斩3.旋风斩3:AnimNotify_PlayNiagaraEffect_0',
                 {Template=fx,Scale={X=2,Y=2,Z=1}})
-            other=object('AnimNotify_PlayNiagaraEffect /Game/怪物/熊怪/攻击.攻击.Notify',{Template=fx,Scale={X=3,Y=3,Z=1}})
+            other=object('AnimNotify_PlayNiagaraEffect /Game/怪物/熊怪/攻击.攻击:AnimNotify_PlayNiagaraEffect_0',{Template=fx,Scale={X=3,Y=3,Z=1}})
             lists.AnimNotify_PlayNiagaraEffect={notify,other}
             lists.LandscapeComponent={comp}
             bridge=Comfort.new()
-            req={active=true,fast_return=false,snow_theme='off',whirlwind_mode='off'}
+            req={active=true,fast_return=false,snow_theme='off',whirlwind_mode='off',expires=os.time()+60}
+            skill=object('技能组件_C player.技能组件');player['技能组件']=skill
+            ground_fx=object('NiagaraSystem /Game/怪物/熊怪/熊冲击粒子.熊冲击粒子')
+            moon_fx=object('NiagaraSystem /Game/粒子/0近战/半月.半月')
+            auto_moon_fx=object('NiagaraSystem /Game/Hack_And_Slash_FX/VFX_Niagara/Slashes/自动.自动')
+            sword_fx=object('NiagaraSystem /Game/Hack_And_Slash_FX/VFX_Niagara/Slashes/剑气.剑气')
+            moon_notify=object('AnimNotify_PlayNiagaraEffect /Game/Characters/Mannequin_UE4/Animations/攻击/0半月斩/半月斩范围8.半月斩范围8:AnimNotify_PlayNiagaraEffect_0',
+                {Template=moon_fx,Scale={X=3.95,Y=3.95,Z=1}})
+            table.insert(lists.AnimNotify_PlayNiagaraEffect,moon_notify)
+            function param(value)
+                return {value=value,get=function(p) return p.value end,set=function(p,v) p.value=v end}
+            end
+            function spawn(context,effect,scale)
+                local template,size=param(effect),param(scale or {X=3.95,Y=3.95,Z=3.95})
+                local callback=function_hooks['/Script/Niagara.NiagaraFunctionLibrary:SpawnSystemAtLocation']
+                if callback then
+                    callback(param(lib),param(context),template,param({X=0,Y=0,Z=0}),
+                        param({Pitch=0,Yaw=0,Roll=0}),size,param(true),param(true),param(0),param(true))
+                end
+                return template:get(),size:get()
+            end
             function step(t) return bridge:step(player,req,t) end
         ''')
 
@@ -144,6 +172,192 @@ class ComfortTests(unittest.TestCase):
             req.whirlwind_mode='hidden';step(2);assert(notify.Template==nil)
             req.whirlwind_mode='off';step(3)
             assert(notify.Template==fx and notify.Scale.X==2 and notify.Scale.Z==1)
+        ''')
+
+    def test_whirlwind_hides_live_skill_component_spawn(self):
+        self.check('''
+            req.whirlwind_mode='hidden';step(1)
+            assert(spawn(skill,ground_fx)==nil,'current game spawns the ring outside animation notifies')
+            assert(step(2).whirlwind.spawn_count==1)
+            assert(hook_registrations==1 and ground_fx:IsValid())
+        ''')
+
+    def test_halfmoon_hides_animation_and_spawn_without_enabling_whirlwind(self):
+        self.check('''
+            req.halfmoon_mode='hidden';step(1)
+            assert(moon_notify.Template==nil)
+            assert(spawn(skill,moon_fx)==nil)
+            assert(notify.Template==fx and spawn(skill,ground_fx)==ground_fx)
+            assert(step(2).halfmoon.spawn_count==1 and step(2).whirlwind.state=='off')
+            req.halfmoon_mode='off';step(3)
+            assert(moon_notify.Template==moon_fx and spawn(skill,moon_fx)==moon_fx)
+        ''')
+
+    def test_halfmoon_soft_and_whirlwind_hidden_are_independent(self):
+        self.check('''
+            req.halfmoon_mode='soft';req.whirlwind_mode='hidden';step(1)
+            local template,size=spawn(skill,moon_fx)
+            assert(template==moon_fx and math.abs(size.X-1.3825)<.000001)
+            assert(math.abs(moon_notify.Scale.X-1.3825)<.000001)
+            assert(spawn(skill,ground_fx)==nil and notify.Template==nil)
+            assert(spawn(other,moon_fx)==moon_fx and spawn(skill,fx)==fx)
+            assert(hook_registrations==1,'both skills share one filtered native hook')
+            bridge:stop()
+            assert(moon_notify.Scale.X==3.95 and spawn(skill,moon_fx)==moon_fx)
+        ''')
+
+    def test_auto_halfmoon_uses_live_multicast_asset_and_restores_on_disable(self):
+        self.check('''
+            -- Resolved from the running skill function's bytecode: the
+            -- automatic halfmoon references this asset, not moon_fx.
+            req.halfmoon_mode='hidden';step(1)
+            assert(spawn(skill,auto_moon_fx)==nil,'auto halfmoon uses the automatic slash asset')
+            assert(step(2).halfmoon.spawn_count==1)
+            assert(spawn(skill,sword_fx)==sword_fx,'sword-energy effect is a separate skill')
+            assert(spawn(other,auto_moon_fx)==auto_moon_fx,'other players are out of scope')
+            req.halfmoon_mode='soft';step(3)
+            local original={X=3.95,Y=3.95,Z=3.95}
+            local template,size=spawn(skill,auto_moon_fx,original)
+            assert(template==auto_moon_fx and math.abs(size.X-1.3825)<.000001)
+            assert(original.X==3.95 and auto_moon_fx:IsValid())
+            req.halfmoon_mode='off';step(4)
+            assert(spawn(skill,auto_moon_fx)==auto_moon_fx)
+        ''')
+
+    def test_halfmoon_keeps_lunge_animation_even_with_shared_template(self):
+        self.check('''
+            local path='AnimNotify_PlayNiagaraEffect /Game/Characters/Mannequin_UE4/Animations/攻击/突斩/'
+                ..'突斩_Montage.突斩_Montage:AnimNotify_PlayNiagaraEffect_0'
+            local lunge=object(path,{Template=moon_fx,Scale={X=2.5,Y=2.5,Z=2.5}})
+            lists.AnimNotify_PlayNiagaraEffect={lunge}
+            req.halfmoon_mode='soft';step(1)
+            assert(lunge.Scale.X==2.5 and lunge.Template==moon_fx)
+            req.halfmoon_mode='hidden';step(2)
+            assert(lunge.Template==moon_fx and lunge.Scale.X==2.5)
+            req.halfmoon_mode='off';step(3)
+            assert(lunge.Template==moon_fx and lunge.Scale.X==2.5)
+        ''')
+
+    def test_halfmoon_all_levels_and_exact_animation_scope(self):
+        self.check('''
+            local targets={}
+            for level=0,10 do
+                local name='半月斩范围'..level
+                targets[#targets+1]=object('AnimNotify_PlayNiagaraEffect /Game/Characters/Mannequin_UE4/Animations/攻击/0半月斩/'
+                    ..name..'.'..name..':AnimNotify_PlayNiagaraEffect_0',{Template=moon_fx,Scale={X=2,Y=2,Z=1}})
+            end
+            local rejected=object('AnimNotify_PlayNiagaraEffect /Game/Other/半月斩范围8.半月斩范围8:AnimNotify_PlayNiagaraEffect_0',
+                {Template=moon_fx,Scale={X=2,Y=2,Z=1}})
+            lists.AnimNotify_PlayNiagaraEffect={rejected}
+            for _,o in ipairs(targets) do table.insert(lists.AnimNotify_PlayNiagaraEffect,o) end
+            req.halfmoon_mode='hidden'
+            for i=1,4 do step(i) end
+            assert(step(5).halfmoon.count==11)
+            for _,o in ipairs(targets) do assert(o.Template==nil) end
+            assert(rejected.Template==moon_fx)
+        ''')
+
+    def test_whirlwind_softens_only_visual_spawn_scale(self):
+        self.check('''
+            req.whirlwind_mode='soft';step(1)
+            skill['技能范围']=8
+            local original={X=3.95,Y=3.95,Z=3.95}
+            local template,size=spawn(skill,ground_fx,original)
+            assert(template==ground_fx and math.abs(size.X-1.3825)<.000001)
+            assert(size.X==size.Y and size.Y==size.Z)
+            assert(original.X==3.95 and skill['技能范围']==8)
+            assert(step(2).whirlwind.spawn_count==1)
+        ''')
+
+    def test_whirlwind_spawn_scope_excludes_other_effects_players_and_monsters(self):
+        self.check('''
+            req.whirlwind_mode='hidden';step(1)
+            for _,context in ipairs({other,object('技能组件_C other-player.技能组件'),player}) do
+                local template,size=spawn(context,ground_fx)
+                assert(template==ground_fx and size.X==3.95)
+            end
+            assert(spawn(skill,fx)==fx,'other skills and shared assets must remain unchanged')
+            assert(step(2).whirlwind.spawn_count==0)
+        ''')
+
+    def test_whirlwind_spawn_is_inert_after_stop_expiry_or_disable(self):
+        self.check('''
+            req.whirlwind_mode='hidden';step(1)
+            req.expires=os.time()-1;assert(spawn(skill,ground_fx)==ground_fx)
+            req.expires=os.time()+60;player.local_player=false
+            assert(spawn(skill,ground_fx)==ground_fx);player.local_player=true
+            req.whirlwind_mode='off';step(2);assert(spawn(skill,ground_fx)==ground_fx)
+            req.whirlwind_mode='soft';step(3);bridge:stop()
+            assert(spawn(skill,ground_fx)==ground_fx)
+            step(4);assert(hook_registrations==1,'mode changes must not accumulate hooks')
+        ''')
+
+    def test_whirlwind_spawn_write_failure_is_reported_without_escaping_callback(self):
+        self.check('''
+            req.whirlwind_mode='hidden';step(1)
+            local original=param
+            function param(value)
+                local p=original(value)
+                if value==ground_fx then p.set=function() end end
+                return p
+            end
+            assert(spawn(skill,ground_fx)==ground_fx)
+            local status=step(2).whirlwind
+            assert(status.state=='error' and status.error:find('readback'))
+            assert(status.spawn_count==0)
+        ''')
+
+    def test_all_whirlwind_levels_with_engine_subobject_paths(self):
+        self.check('''
+            local targets={}
+            for level=0,10 do
+                local name='旋风斩'..level
+                for index=0,1 do
+                    targets[#targets+1]=object(
+                        'AnimNotify_PlayNiagaraEffect /Game/Characters/Mannequin_UE4/Animations/攻击/0旋风斩/'
+                            ..name..'.'..name..':AnimNotify_PlayNiagaraEffect_'..index,
+                        {Template=fx,Scale={X=2,Y=2,Z=1}})
+                end
+            end
+            lists.AnimNotify_PlayNiagaraEffect=targets
+            req.whirlwind_mode='soft'
+            for i=1,8 do step(i) end
+            assert(step(9).whirlwind.count==22,'all 22 engine paths must be recognized')
+            for _,o in ipairs(targets) do
+                assert(math.abs(o.Scale.X-.7)<.00001 and o.Template==fx)
+            end
+            req.whirlwind_mode='hidden'
+            for i=10,17 do step(i) end
+            for _,o in ipairs(targets) do assert(o.Template==nil and o.Scale.X==2) end
+            req.whirlwind_mode='off';step(18)
+            for _,o in ipairs(targets) do
+                assert(o.Template==fx and o.Scale.X==2 and o.Scale.Z==1)
+            end
+        ''')
+
+    def test_whirlwind_path_compatibility_does_not_broaden_effect_scope(self):
+        self.check('''
+            local prefix='AnimNotify_PlayNiagaraEffect /Game/Characters/Mannequin_UE4/Animations/攻击/0旋风斩/'
+            local captured=object(prefix..'旋风斩3.旋风斩3.AnimNotify_PlayNiagaraEffect_0',
+                {Template=fx,Scale={X=2,Y=2,Z=1}})
+            local rejected={other}
+            for _,path in ipairs({
+                prefix..'旋风斩3.旋风斩4:AnimNotify_PlayNiagaraEffect_0',
+                prefix..'旋风斩3.旋风斩3:AnimNotify_PlayNiagaraEffect_0.Other',
+                prefix..'旋风斩3.旋风斩3:Other_0',
+                prefix..'旋风斩3.旋风斩3/AnimNotify_PlayNiagaraEffect_0',
+                'AnimNotify_PlayNiagaraEffect /Game/Other/旋风斩3.旋风斩3:AnimNotify_PlayNiagaraEffect_0'
+            }) do
+                rejected[#rejected+1]=object(path,{Template=fx,Scale={X=3,Y=3,Z=1}})
+            end
+            lists.AnimNotify_PlayNiagaraEffect={notify,captured}
+            for _,o in ipairs(rejected) do table.insert(lists.AnimNotify_PlayNiagaraEffect,o) end
+            req.whirlwind_mode='hidden'
+            for i=1,4 do step(i) end
+            assert(step(5).whirlwind.count==2 and notify.Template==nil and captured.Template==nil)
+            for _,o in ipairs(rejected) do assert(o.Template==fx and o.Scale.X==3) end
+            req.whirlwind_mode='off';step(6)
+            assert(notify.Template==fx and captured.Template==fx)
         ''')
 
     def test_snow_uses_private_dynamic_material_and_reuses_it(self):

@@ -4,8 +4,9 @@ local M = { actors = {}, refresh_at = 0, notified = false }
 function M:comfort_step(req,now)
     if not self.comfort_control and req.fast_return~=true
             and (not req.snow_theme or req.snow_theme=='off')
-            and (not req.whirlwind_mode or req.whirlwind_mode=='off') then
-        return {snow={state='off'},whirlwind={state='off'},fast_return={state='off'}}
+            and (not req.whirlwind_mode or req.whirlwind_mode=='off')
+            and (not req.halfmoon_mode or req.halfmoon_mode=='off') then
+        return {snow={state='off'},whirlwind={state='off'},halfmoon={state='off'},fast_return={state='off'}}
     end
     if not self.comfort_control then self.comfort_control=require('comfort').new() end
     return self.comfort_control:step(self.player,req,now)

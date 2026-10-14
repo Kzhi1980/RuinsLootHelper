@@ -16,6 +16,16 @@ class EngineName:
 
 
 class NativeGameTests(unittest.TestCase):
+    def test_halfmoon_alone_loads_comfort_adapter(self):
+        self.lua.execute('''
+            package.preload.comfort=function() return {new=function()
+                return {step=function(_,p,req,now)
+                    assert(req.halfmoon_mode=='hidden');return {halfmoon={state='waiting'}}
+                end}
+            end} end
+            assert(adapter:comfort_step({halfmoon_mode='hidden'},1).halfmoon.state=='waiting')
+        ''')
+
     def setUp(self):
         self.lua = LuaRuntime(unpack_returned_tuples=True)
         self.lua.globals().FName = EngineName

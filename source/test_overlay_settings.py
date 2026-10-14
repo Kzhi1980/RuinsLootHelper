@@ -21,11 +21,16 @@ class SettingsTests(unittest.TestCase):
         try:
             dialog = Settings(host, show=False)
             n = dialog.native_settings
-            self.assertFalse(n.snow.get() or n.whirlwind.get() or n.fast_return.get())
+            self.assertFalse(n.snow.get() or n.whirlwind.get() or n.halfmoon.get() or n.fast_return.get())
             n.snow.set(True); n.snow_choice.set('灰绿')
             n.whirlwind.set(True); n.whirlwind_choice.set('隐藏'); n.fast_return.set(True)
+            n.halfmoon.set(True); n.halfmoon_choice.set('减弱')
             values = n.values()['native']
             self.assertEqual((values['snow_theme'], values['whirlwind_mode'], values['fast_return']), ('sage', 'hidden', True))
+            self.assertEqual(values['halfmoon_mode'], 'soft')
+            n.halfmoon.set(False)
+            self.assertEqual(n.values()['native']['halfmoon_mode'], 'off')
+            self.assertEqual(n.values()['native']['whirlwind_mode'], 'hidden')
             self.assertEqual(values['unrelated_option'], 123)
             self.assertTrue(values['pickup'] and values['lock'])
             dialog.cancel()

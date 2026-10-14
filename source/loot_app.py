@@ -14,7 +14,7 @@ from game_install import discover, resolve_game
 from release_runtime import write_json
 from worker_process import ProcessBackend
 
-VERSION = '0.3.11'
+VERSION = '0.3.12'
 TITLE = '破晓装备助手'
 DATA_NAME = 'RuinsLootHelper'
 

@@ -4,7 +4,7 @@ import queue
 import threading
 import tkinter as tk
 from tkinter import ttk
-from comfort_options import SNOW_THEMES, WHIRLWIND_MODES, comfort_options
+from comfort_options import SNOW_THEMES, WHIRLWIND_MODES, HALFMOON_MODES, comfort_options
 from native_client import fresh_status, PROTOCOL
 from overlay_scroll import AutoScrollbar
 from pickup_library import pickup_options, RANGE_OPTIONS, INTERVAL_OPTIONS, BATCH_OPTIONS
@@ -66,6 +66,8 @@ class NativeSettings:
         self.snow_choice = tk.StringVar(value=next((k for k, v in SNOW_THEMES.items() if v == comfort['snow_theme']), '米灰'))
         self.whirlwind = tk.BooleanVar(value=comfort['whirlwind_mode'] != 'off')
         self.whirlwind_choice = tk.StringVar(value=next((k for k, v in WHIRLWIND_MODES.items() if v == comfort['whirlwind_mode']), '减弱'))
+        self.halfmoon = tk.BooleanVar(value=comfort['halfmoon_mode'] != 'off')
+        self.halfmoon_choice = tk.StringVar(value=next((k for k, v in HALFMOON_MODES.items() if v == comfort['halfmoon_mode']), '减弱'))
         self.fast_return = tk.BooleanVar(value=comfort['fast_return'])
         self.drop_enabled = tk.BooleanVar(value=dialog.settings.get('drop_filter_enabled', True))
         self.borderless = tk.BooleanVar(value=settings.get('borderless', False))
@@ -151,6 +153,10 @@ class NativeSettings:
         self.whirlwind_status = self.text(self.whirlwind_card, '已关闭', GREEN)
         ttk.Combobox(self.whirlwind_card, textvariable=self.whirlwind_choice, values=list(WHIRLWIND_MODES),
                      state='readonly', width=12).pack(anchor='w', padx=14, pady=(0,14))
+        self.halfmoon_card, self.halfmoon_check = self.card('半月斩特效', '减弱或隐藏半月斩光效，保留技能伤害。', self.halfmoon)
+        self.halfmoon_status = self.text(self.halfmoon_card, '已关闭', GREEN)
+        ttk.Combobox(self.halfmoon_card, textvariable=self.halfmoon_choice, values=list(HALFMOON_MODES),
+                     state='readonly', width=12).pack(anchor='w', padx=14, pady=(0,14))
         self.return_card, self.return_check = self.card('快速回城', '回城准备约 1 秒，仅单人或自己开房可用。', self.fast_return)
         self.return_status = self.text(self.return_card, '已关闭', GREEN)
         self.text(self.return_card, '按游戏回城键触发；移动或施法仍会打断。')
@@ -205,7 +211,7 @@ class NativeSettings:
 
     def resize(self, event, body_id):
         self.canvas.itemconfigure(body_id, width=event.width)
-        if len(self.cards) < 8:
+        if len(self.cards) < 9:
             return
         mode = event.width >= 650
         if mode != self.mode:
@@ -215,11 +221,12 @@ class NativeSettings:
             if mode:
                 for card, row, col, span in ((self.pickup_card,0,0,1),(self.drop_card,1,0,1),
                          (self.lock_card,0,1,2),(self.rift_card,2,0,1),(self.bagua_card,2,1,1),
-                         (self.snow_card,3,0,1),(self.whirlwind_card,3,1,1),(self.return_card,4,0,1)):
+                         (self.snow_card,3,0,1),(self.whirlwind_card,3,1,1),
+                         (self.halfmoon_card,4,0,1),(self.return_card,4,1,1)):
                     card.grid(row=row, column=col, rowspan=span, sticky='nsew', padx=(0,12) if col==0 else 0, pady=(0,12))
             else:
                 for row, card in enumerate((self.pickup_card,self.drop_card,self.lock_card,self.rift_card,self.bagua_card,
-                                           self.snow_card,self.whirlwind_card,self.return_card)):
+                                           self.snow_card,self.whirlwind_card,self.halfmoon_card,self.return_card)):
                     card.grid(row=row, column=0, columnspan=2, sticky='nsew', pady=(0,12))
         width = max(230, (event.width-12)//2-28 if mode else event.width-28)
         for widget in self.wrap_labels:
@@ -314,6 +321,7 @@ class NativeSettings:
         comfort = state.get('comfort', {}) or {}
         for key, enabled, widget in (('snow', self.snow.get(), self.snow_status),
                                     ('whirlwind', self.whirlwind.get(), self.whirlwind_status),
+                                    ('halfmoon', self.halfmoon.get(), self.halfmoon_status),
                                     ('fast_return', self.fast_return.get(), self.return_status)):
             code = (comfort.get(key, {}) or {}).get('state')
             message = {'applied':'已应用，可关闭恢复原样','applying':'正在应用',
@@ -322,7 +330,7 @@ class NativeSettings:
                        'inactive':'切出游戏，暂缓加速','unsupported':'当前游戏版本暂不支持',
                        'error':'暂未应用，请关闭后重试'}.get(code, '保存设置后生效')
             widget.configure(text='已关闭' if not enabled else '等待游戏组件连接' if not connected else
-                             '更新组件并重启游戏后可用' if not state.get('comfort_supported') else message)
+                             '更新组件并重启游戏后可用' if not state.get('comfort_supported') or key not in comfort else message)
         library = self.dialog.pickup_library.model
         selected = len(library.equipment_values()) + len(library.codex_values())
         self.codex_summary.configure(text='已关闭，清单已保留' if not self.drop_enabled.get() else
@@ -383,5 +391,6 @@ class NativeSettings:
                       borderless=self.borderless.get(), lock_sections={key: var.get() for key,var in self.sections.items()})
         values.update(snow_theme=SNOW_THEMES.get(self.snow_choice.get(), 'off') if self.snow.get() else 'off',
                       whirlwind_mode=WHIRLWIND_MODES.get(self.whirlwind_choice.get(), 'off') if self.whirlwind.get() else 'off',
+                      halfmoon_mode=HALFMOON_MODES.get(self.halfmoon_choice.get(), 'off') if self.halfmoon.get() else 'off',
                       fast_return=self.fast_return.get())
         return {'native': values, 'drop_filter_enabled': self.drop_enabled.get()}

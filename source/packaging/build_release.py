@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from native_support import ARCHIVE_NAME, SHA256 as RUNTIME_SHA256
 
-VERSION = '0.3.11'
+VERSION = '0.3.12'
 STAGING = ROOT / ('release-staging-' + VERSION)
 APP = STAGING / '破晓装备助手'
 DESTINATION = ROOT / 'releases' / VERSION
@@ -81,7 +81,7 @@ def main():
         'native_runtime_bytes': packaged_runtime.stat().st_size, 'native_runtime_sha256': RUNTIME_SHA256,
         'native_features_enabled_by_default': False, 'native_game_verified': False,
         'features': ['filters', 'backpack_markers', 'native_pickup', 'auto_lock', 'quality_equipment_lock',
-                     'auto_recycle', 'auto_rift', 'bagua_marker', 'snow_theme', 'whirlwind_visuals', 'host_fast_return'],
+                     'auto_recycle', 'auto_rift', 'bagua_marker', 'snow_theme', 'whirlwind_visuals', 'halfmoon_visuals', 'host_fast_return'],
     }
     (DESTINATION / 'build-manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding='utf8')
     print(json.dumps(manifest, ensure_ascii=False, indent=2))

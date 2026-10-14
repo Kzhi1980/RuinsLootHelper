@@ -16,12 +16,15 @@ class NativeClientTests(unittest.TestCase):
         snap = self.snapshot()
         req = self.send(snap)
         self.assertEqual((req['snow_theme'], req['whirlwind_mode'], req['fast_return']), ('off', 'off', False))
-        snap.settings['native'].update(snow_theme='sage', whirlwind_mode='hidden', fast_return=True)
+        self.assertEqual(req['halfmoon_mode'], 'off')
+        snap.settings['native'].update(snow_theme='sage', whirlwind_mode='hidden', halfmoon_mode='soft', fast_return=True)
         req = self.send(snap)
         self.assertEqual((req['snow_theme'], req['whirlwind_mode'], req['fast_return']), ('sage', 'hidden', True))
+        self.assertEqual(req['halfmoon_mode'], 'soft')
         snap = replace(snap, live=False)
         req = self.send(snap)
         self.assertEqual((req['snow_theme'], req['whirlwind_mode'], req['fast_return']), ('off', 'off', False))
+        self.assertEqual(req['halfmoon_mode'], 'off')
 
     def setUp(self):
         self.client = NativeClient()

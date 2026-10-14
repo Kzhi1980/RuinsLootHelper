@@ -4,6 +4,13 @@ local M = {}
 local THEMES = {beige={.62,.55,.43},sage={.46,.57,.48},slate={.36,.40,.47}}
 local LAND = '/Game/land/Materials/landscape/MI_landscape_Inst.MI_landscape_Inst'
 local WHIRL = '/Game/Characters/Mannequin_UE4/Animations/攻击/0旋风斩/'
+local WHIRL_EFFECT = 'NiagaraSystem /Game/怪物/熊怪/熊冲击粒子.熊冲击粒子'
+local HALFMOON = '/Game/Characters/Mannequin_UE4/Animations/攻击/0半月斩/'
+local HALFMOON_EFFECT = 'NiagaraSystem /Game/粒子/0近战/半月.半月'
+-- Resolved from the live 组播半月斩特效 bytecode; automatic procs use a
+-- different Niagara system from the manually cast animation notifies.
+local AUTO_HALFMOON_EFFECT = 'NiagaraSystem /Game/Hack_And_Slash_FX/VFX_Niagara/Slashes/自动.自动'
+local SPAWN_EFFECT = '/Script/Niagara.NiagaraFunctionLibrary:SpawnSystemAtLocation'
 local function valid(o) return o and o:IsValid() end
 local function same(a,b) return valid(a) and valid(b) and a:GetAddress()==b:GetAddress() end
 local function color(v) return {R=v.R,G=v.G,B=v.B,A=v.A} end
@@ -37,13 +44,75 @@ local function exact_whirl(o)
     local path=o:GetFullName()
     local rest=path:match('^AnimNotify_PlayNiagaraEffect '..WHIRL..'(.*)$')
     if not rest then return false end
-    local asset,outer=rest:match('^(旋风斩%d*)%.(旋风斩%d*)%.AnimNotify_PlayNiagaraEffect_%d+$')
+    -- GetFullName uses ':' for asset subobjects; reflection captures used '.'.
+    -- Accept either separator while retaining the exact animation allowlist.
+    local asset,outer=rest:match('^(旋风斩%d*)%.(旋风斩%d*)[:.]AnimNotify_PlayNiagaraEffect_%d+$')
+    return asset~=nil and asset==outer
+end
+local function exact_halfmoon(o)
+    local path=o:GetFullName()
+    local rest=path:match('^AnimNotify_PlayNiagaraEffect '..HALFMOON..'(.*)$')
+    if not rest then return false end
+    local asset,outer=rest:match('^(半月斩范围%d+)%.(半月斩范围%d+)[:.]AnimNotify_PlayNiagaraEffect_%d+$')
     return asset~=nil and asset==outer
 end
 
 function M.new()
-    local self={snow={},proxies={},whirl={},snow_queue={},whirl_queue={},hooks={},
-        snow_mode='off',whirl_mode='off',world=nil,player=nil,now=0}
+    local self={snow={},proxies={},whirl={},halfmoon={},snow_queue={},whirl_queue={},halfmoon_queue={},hooks={},
+        snow_mode='off',whirl_mode='off',halfmoon_mode='off',whirl_spawns=0,halfmoon_spawns=0,world=nil,player=nil,now=0}
+
+    function self:apply_skill_spawn(...)
+        local req=self.whirl_request
+        if (self.whirl_mode=='off' and self.halfmoon_mode=='off') or not req
+                or type(req.expires)~='number' or os.time()>req.expires
+                or not valid(self.player) then return end
+        assert(select('#',...)==9,'Unsupported Niagara spawn signature')
+        local context,template,location,rotation,scale=...
+        -- 组播旋风斩特效 and 组播半月斩特效 spawn directly with their
+        -- skill component as WorldContextObject. Never suppress a shared
+        -- bear asset globally, or touch skill range/damage/animation playback.
+        if not same(context:get(),self.player['技能组件']) then return end
+        if self.player:IsLocallyControlled()~=true then return end
+        local effect=template:get()
+        if not valid(effect) then return end
+        local path=effect:GetFullName()
+        local kind=path==WHIRL_EFFECT and 'whirl'
+            or (path==HALFMOON_EFFECT or path==AUTO_HALFMOON_EFFECT) and 'halfmoon' or nil
+        if not kind or self[kind..'_mode']=='off' or self[kind..'_error'] then return end
+        local ok,err=pcall(function()
+            if self[kind..'_mode']=='hidden' then
+                template:set(nil)
+                assert(not valid(template:get()),'Skill effect template readback failed')
+            else
+                local s=vector(scale:get())
+                assert(finite(s.X) and finite(s.Y) and finite(s.Z),'Invalid spawned effect scale')
+                scale:set({X=s.X*.35,Y=s.Y*.35,Z=s.Z*.35})
+                local applied=scale:get()
+                assert(math.abs(applied.X-s.X*.35)<.000001
+                    and math.abs(applied.Y-s.Y*.35)<.000001
+                    and math.abs(applied.Z-s.Z*.35)<.000001,'Skill effect scale readback failed')
+            end
+        end)
+        if ok then self[kind..'_spawns']=self[kind..'_spawns']+1
+        else self[kind..'_error']=tostring(err) end
+    end
+
+    function self:hook_whirl_spawn()
+        if self.whirl_spawn_ids then return end
+        assert(valid(StaticFindObject(SPAWN_EFFECT)),'Niagara spawn function unavailable')
+        -- Native /Script hooks run before spawning; Blueprint hooks run after
+        -- their effects have already been created. Keep one inert hook when off.
+        local first,last=RegisterHook(SPAWN_EFFECT,function(_, ...)
+            local ok,err=pcall(self.apply_skill_spawn,self,...)
+            if not ok then
+                for _,kind in ipairs({'whirl','halfmoon'}) do
+                    if self[kind..'_mode']~='off' then self[kind..'_error']=tostring(err) end
+                end
+            end
+        end)
+        assert(type(first)=='number' and type(last)=='number','Niagara spawn hook unavailable')
+        self.whirl_spawn_ids={first,last}
+    end
 
     function self:restore_return()
         local r=self.return_override
@@ -83,15 +152,15 @@ function M.new()
         return {state=self.return_override and 'shortened' or 'ready'}
     end
 
-    function self:restore_whirl()
-        for id,r in pairs(self.whirl) do
+    function self:restore_notifies(kind)
+        for id,r in pairs(self[kind]) do
             if valid(r.object) and r.object:GetFullName()==r.path then
                 -- Restore only our own override; do not overwrite another mod.
                 if r.hidden and not valid(r.object.Template) then
                     -- Lua wrappers do not keep UObject assets alive through GC.
                     local template=r.template
                     if not valid(template) then template=LoadAsset(r.template_path) end
-                    assert(valid(template),'Original whirlwind effect could not be reloaded')
+                    assert(valid(template),'Original skill effect could not be reloaded')
                     r.object.Template=template
                 end
                 if not r.hidden then
@@ -101,10 +170,12 @@ function M.new()
                     end
                 end
             end
-            self.whirl[id]=nil
+            self[kind][id]=nil
         end
-        self.whirl_queue={}
+        self[kind..'_queue']={}
     end
+    function self:restore_whirl() self:restore_notifies('whirl') end
+    function self:restore_halfmoon() self:restore_notifies('halfmoon') end
 
     function self:restore_snow()
         local foreign,refresh={},{}
@@ -143,15 +214,16 @@ function M.new()
     end
 
     function self:stop()
+        self.whirl_request=nil
         -- Each restoration is independent, so one stale object cannot prevent
         -- the other features from returning to their original state.
         local errors={}
-        for _,name in ipairs({'restore_return','restore_whirl','restore_snow'}) do
+        for _,name in ipairs({'restore_return','restore_whirl','restore_halfmoon','restore_snow'}) do
             local ok,err=pcall(function() self[name](self) end)
             if not ok then errors[#errors+1]=tostring(err) end
         end
-        self.snow_mode,self.whirl_mode='off','off'
-        self.snow_error,self.whirl_error=nil,nil
+        self.snow_mode,self.whirl_mode,self.halfmoon_mode='off','off','off'
+        self.snow_error,self.whirl_error,self.halfmoon_error=nil,nil,nil
         if #errors>0 then error(table.concat(errors,'; ')) end
     end
 
@@ -171,21 +243,23 @@ function M.new()
         for _,o in ipairs(FindAllOf(class) or {}) do self:queue(kind,o) end
     end
 
-    function self:apply_whirl(o)
-        if not exact_whirl(o) then return end
+    function self:apply_notify(kind,o)
+        if not (kind=='whirl' and exact_whirl(o) or kind=='halfmoon' and exact_halfmoon(o)) then return end
         local id=o:GetAddress()
-        if self.whirl[id] then return end
+        if self[kind][id] then return end
         if not valid(o.Template) then return end
         local scale=vector(o.Scale)
         assert(finite(scale.X) and finite(scale.Y) and finite(scale.Z),'Invalid effect scale')
         local template_path=o.Template:GetFullName():match('^NiagaraSystem (.+)$')
-        assert(template_path,'Unexpected whirlwind template type')
+        assert(template_path,'Unexpected skill effect template type')
         local r={object=o,path=o:GetFullName(),template=o.Template,template_path=template_path,
-            scale=scale,hidden=self.whirl_mode=='hidden'}
-        self.whirl[id]=r
+            scale=scale,hidden=self[kind..'_mode']=='hidden'}
+        self[kind][id]=r
         if r.hidden then o.Template=nil
         else o.Scale={X=scale.X*.35,Y=scale.Y*.35,Z=scale.Z*.35} end
     end
+    function self:apply_whirl(o) self:apply_notify('whirl',o) end
+    function self:apply_halfmoon(o) self:apply_notify('halfmoon',o) end
 
     function self:apply_snow(c)
         if not same(c:GetWorld(),self.world) then return end
@@ -248,12 +322,17 @@ function M.new()
     function self:visual_step(kind,mode)
         local old=self[kind..'_mode']
         if old~=mode then
-            if kind=='whirl' then self:restore_whirl()
+            if kind~='snow' then self['restore_'..kind](self)
             elseif mode=='off' then self:restore_snow() end
             self[kind..'_mode']=mode
             self[kind..'_error']=nil
             if mode~='off' then
-                if old=='off' or kind=='whirl' then
+                if kind~='snow' then
+                    self[kind..'_spawns']=0
+                    local ok,err=pcall(self.hook_whirl_spawn,self)
+                    if not ok then self[kind..'_error']=tostring(err) end
+                end
+                if old=='off' or kind~='snow' then
                     self:discover(kind,kind=='snow' and 'LandscapeComponent' or 'AnimNotify_PlayNiagaraEffect',
                         kind=='snow' and '/Script/Landscape.LandscapeComponent' or '/Script/NiagaraAnimNotifies.AnimNotify_PlayNiagaraEffect')
                 else
@@ -289,15 +368,19 @@ function M.new()
         local world=player:GetWorld()
         if self.player and (not same(player,self.player) or not same(world,self.world)) then self:stop() end
         self.player,self.world=player,world
+        self.whirl_request=req
         local snow=THEMES[req.snow_theme] and req.snow_theme or 'off'
         local whirl=(req.whirlwind_mode=='soft' or req.whirlwind_mode=='hidden') and req.whirlwind_mode or 'off'
+        local halfmoon=(req.halfmoon_mode=='soft' or req.halfmoon_mode=='hidden') and req.halfmoon_mode or 'off'
         local status={}
         local ok,result=pcall(function() return self:return_step(player,req,now) end)
         status.fast_return=ok and result or {state='error',error=tostring(result)}
-        for key,mode in pairs({snow=snow,whirl=whirl}) do
+        for key,mode in pairs({snow=snow,whirl=whirl,halfmoon=halfmoon}) do
             ok,result=pcall(function() return self:visual_step(key,mode) end)
             status[key=='whirl' and 'whirlwind' or key]=ok and result or {state='error',error=tostring(result)}
         end
+        status.whirlwind.spawn_count=self.whirl_spawns
+        status.halfmoon.spawn_count=self.halfmoon_spawns
         return status
     end
     return self
