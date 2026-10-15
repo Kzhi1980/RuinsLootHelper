@@ -35,8 +35,8 @@ Lua 在游戏线程中调用现有蓝图接口。助手与组件通过本机数�
 
 离线运行库：`_internal/runtime/UE4SS-2bfa839f.zip`。
 
-- 上游下载：https://github.com/UE4SS-RE/RE-UE4SS/releases/download/experimental-latest/UE4SS_v3.0.1-1127-g2bfa839f.zip
-- 源码：https://github.com/UE4SS-RE/RE-UE4SS/tree/2bfa839f
+- 上游下载：
+- 源码：https://github.com/Kzhi1980/RuinsLootHelper
 - SHA-256：`29367ce89f3637a537d507f2c79b9d33df3d145c63fd8bb0179f737a5ce46374`
 
 本目录组件使用 MIT 许可，见 `LICENSE`。`json.lua` 来自 https://github.com/rxi/json.lua，保留其 MIT 许可。未启用控制台、CheatManager、热重载或示例按键 Mods。
