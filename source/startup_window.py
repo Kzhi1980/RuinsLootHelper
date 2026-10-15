@@ -27,7 +27,7 @@ class StartupWindow:
         overlay.main_window = self
         overlay.settings_dialog = self.dialog
         overlay.popup = self.window
-        overlay.project_window = self.show_project
+        #overlay.project_window = self.show_project #修改
         self.dialog.button(self.dialog.notice.master, '退出助手', self.exit).pack(side='left', padx=14)
         self.set_state({'status': 'waiting_for_game'})
         if show:
@@ -55,8 +55,9 @@ class StartupWindow:
         self.dialog.features.select(self.dialog.native_settings.tab)
 
     def show_project(self):
-        self.show()
-        self.dialog.features.select(self.dialog.project_tab)
+        #self.show() #修改
+        #self.dialog.features.select(self.dialog.project_tab) #修改 
+        pass  #增加
 
     def exit(self):
         self.user_open = False
