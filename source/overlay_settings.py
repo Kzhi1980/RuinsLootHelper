@@ -79,10 +79,11 @@ class Settings:
         self.author_tab = tk.Frame(self.features, bg=BG)
         self.features.add(self.author_tab, text='作者的话', separator=True)
         self.author_scrollbar = populate(self.author_tab)
-        self.project_tab = tk.Frame(self.features, bg=BG)
-        self.features.add(self.project_tab, text='项目与更新')
-        label(self.project_tab, '项目与更新', size=20, bold=True).pack(anchor='w', pady=(6, 18))
-        self.build_project_page(VERSION)
+        #self.project_tab = tk.Frame(self.features, bg=BG) #修改    
+        #self.features.add(self.project_tab, text='项目与更新') #修改
+        #label(self.project_tab, '项目与更新', size=20, bold=True).pack(anchor='w', pady=(6, 18)) #修改
+        #self.build_project_page(VERSION) #修改
+        self.updates = None  #增加的
         from overlay_pickup_library import PickupLibrarySettings
         self.pickup_library = PickupLibrarySettings(self)
         bottom = tk.Frame(self.window, bg=BG)
