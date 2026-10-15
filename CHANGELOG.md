@@ -84,7 +84,7 @@
 
 ## 0.3.4 — 2026-09-09
 
-- [Windows 完整包已发布](https://github.com/kkray983681062-bit/RuinsLootHelper/releases/tag/v0.3.4)，包含约 9 MB 的游戏组件，首次安装无需联网下载。
+- [Windows 完整包已发布](https://github.com/Kzhi1980/RuinsLootHelper)，包含约 9 MB 的游戏组件，首次安装无需联网下载。
 - 界面标明完全免费，悬浮窗标题简化为“空位：数量 · 免费助手”。
 - 排除库按钮简化为“全选 / 取消全选 / 清空已选”。
 - 提供 GitHub、蓝奏云入口及新版检测、提醒和点击下载。
